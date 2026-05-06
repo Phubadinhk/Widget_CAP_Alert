@@ -115,8 +115,7 @@ jobs:
                       "type": "TextBlock",
                       "text": report,
                       "wrap": True,
-                      "fontType": "Monospace",
-                      "size": "Small",
+                      "size": "ExtraSmall",
                       "spacing": "None"
                   },
                   {
