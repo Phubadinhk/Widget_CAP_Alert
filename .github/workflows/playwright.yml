@@ -49,6 +49,7 @@ jobs:
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           START_TIME=$(TZ='Asia/Bangkok' date '+%d/%m/%Y %H:%M:%S')
+          export START_TIME
 
           python - <<'PY'
           import json
@@ -56,7 +57,7 @@ jobs:
 
           status = os.environ["STATUS"]
           run_url = os.environ["RUN_URL"]
-          start_time = os.environ["START_TIME"]
+          start_time = os.environ.get("START_TIME", "N/A")
 
           report = "No performance report found."
 
@@ -95,84 +96,6 @@ jobs:
                   {
                       "type": "TextBlock",
                       "text": f"Run DateTime (TH): {start_time}",
-                      "wrap": True
-                  },
-                  {
-                      "type": "TextBlock",
-                      "text": "Performance Result",
-                      "weight": "Bolder",
-                      "wrap": True
-                  },
-                  {
-                      "type": "TextBlock",
-                      "text": report,
-                      "wrap": True,
-                      "fontType": "Monospace"
-                  },
-                  {
-                      "type": "TextBlock",
-                      "text": f"Run Report: {run_url}",
-                      "wrap": True
-                  }
-              ]
-          }
-
-          with open("teams-payload.json", "w", encoding="utf-8") as f:
-              json.dump(payload, f, ensure_ascii=False)
-          PY
-
-          curl -X POST \
-            -H "Content-Type: application/json" \
-            -d @teams-payload.json \
-            "${{ secrets.TEAMS_WEBHOOK_URL }}"
-        env:
-          STATUS: ${{ job.status }}
-          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          START_TIME: ${{ env.START_TIME }}
-        if: always()
-        shell: bash
-        env:
-          STATUS: ${{ job.status }}
-          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          python - <<'PY'
-          import json
-          import os
-
-          status = os.environ["STATUS"]
-          run_url = os.environ["RUN_URL"]
-
-          report = "No performance report found."
-          if os.path.exists("performance-report.txt"):
-              with open("performance-report.txt", "r", encoding="utf-8") as f:
-                  lines = f.readlines()
-
-              report_lines = [
-                  line for line in lines
-                  if line.startswith("Run ที่")
-                  or line.startswith("Total Time")
-                  or line.startswith("Average Time")
-                  or line.startswith("----------------")
-                  or line.startswith("Success Runs")
-              ]
-
-              if report_lines:
-                  report = "".join(report_lines)
-
-          payload = {
-              "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-              "type": "AdaptiveCard",
-              "version": "1.4",
-              "body": [
-                  {
-                      "type": "TextBlock",
-                      "text": "Playwright Performance Report",
-                      "weight": "Bolder",
-                      "size": "Medium"
-                  },
-                  {
-                      "type": "TextBlock",
-                      "text": f"Status: {status}",
                       "wrap": True
                   },
                   {
