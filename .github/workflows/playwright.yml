@@ -34,7 +34,43 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
-            - name: Send report to Microsoft Teams
+      - name: Send report to Microsoft Teams
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"\$schema\": \"http://adaptivecards.io/schemas/adaptive-card.json\",
+              \"type\": \"AdaptiveCard\",
+              \"version\": \"1.4\",
+              \"body\": [
+                {
+                  \"type\": \"TextBlock\",
+                  \"text\": \"Playwright Performance Report\",
+                  \"weight\": \"Bolder\",
+                  \"size\": \"Medium\"
+                },
+                {
+                  \"type\": \"TextBlock\",
+                  \"text\": \"Status: ${STATUS}\",
+                  \"wrap\": true
+                },
+                {
+                  \"type\": \"TextBlock\",
+                  \"text\": \"Repository: ${{ github.repository }}\",
+                  \"wrap\": true
+                },
+                {
+                  \"type\": \"TextBlock\",
+                  \"text\": \"Run Report: ${RUN_URL}\",
+                  \"wrap\": true
+                }
+              ]
+            }" \
+            "${{ secrets.TEAMS_WEBHOOK_URL }}"
         if: always()
         run: |
           STATUS="${{ job.status }}"
