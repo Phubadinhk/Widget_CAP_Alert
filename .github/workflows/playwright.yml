@@ -2,7 +2,8 @@ name: Performance Test
 
 on:
   schedule:
-    - cron: "0 2,11 * * *" # 09:00 และ 18:00 เวลาไทย
+    - cron: "30 1 * * *" # 08:30 ไทย
+    - cron: "0 11 * * *" # 18:00 ไทย
   workflow_dispatch:
 
 jobs:
@@ -86,34 +87,44 @@ jobs:
                       "type": "TextBlock",
                       "text": "Playwright Performance Report",
                       "weight": "Bolder",
-                      "size": "Medium"
+                      "size": "Small"
                   },
                   {
                       "type": "TextBlock",
                       "text": f"Status: {status}",
-                      "wrap": True
+                      "wrap": True,
+                      "spacing": "Small",
+                      "size": "Small"
                   },
                   {
                       "type": "TextBlock",
                       "text": f"Run DateTime (TH): {start_time}",
-                      "wrap": True
+                      "wrap": True,
+                      "spacing": "Small",
+                      "size": "Small"
                   },
                   {
                       "type": "TextBlock",
                       "text": "Performance Result",
                       "weight": "Bolder",
-                      "wrap": True
+                      "wrap": True,
+                      "spacing": "Small",
+                      "size": "Small"
                   },
                   {
                       "type": "TextBlock",
                       "text": report,
                       "wrap": True,
-                      "fontType": "Monospace"
+                      "fontType": "Monospace",
+                      "size": "Small",
+                      "spacing": "None"
                   },
                   {
                       "type": "TextBlock",
                       "text": f"Run Report: {run_url}",
-                      "wrap": True
+                      "wrap": True,
+                      "spacing": "Small",
+                      "size": "Small"
                   }
               ]
           }
