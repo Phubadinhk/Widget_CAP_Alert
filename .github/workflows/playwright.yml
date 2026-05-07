@@ -3,7 +3,7 @@ name: Performance Test
 on:
   schedule:
     - cron: "53 0 * * *" # 07:53 ไทย
-    - cron: "48 10 * * *" # 17:48 ไทย
+    - cron: "32 11 * * *" # 17:48 ไทย
     - cron: "14 11 * * *" # 18:14 ไทย
   workflow_dispatch:
 

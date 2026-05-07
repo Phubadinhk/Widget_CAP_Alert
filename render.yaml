@@ -7,16 +7,15 @@ services:
 
     buildCommand: |
       npm ci
-      npx playwright install --with-deps
+      npx playwright install chromium
 
     startCommand: |
-      npx playwright test
+      npm run performance:render
 
-    schedule: "53 0,11 * * *"
+    schedule: "32 11 * * *"
 
     envVars:
       - key: KIOSK_TOKEN
         sync: false
-
       - key: TEAMS_WEBHOOK_URL
         sync: false
