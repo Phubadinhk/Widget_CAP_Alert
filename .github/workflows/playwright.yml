@@ -3,7 +3,7 @@ name: Performance Test
 on:
   schedule:
     - cron: "11 22 * * *" # 05:11 ไทย
-    - cron: "32 8 * * *" # 15:32 ไทย
+    - cron: "32 8 * * *"  # 15:32 ไทย
   workflow_dispatch:
 
 jobs:
@@ -74,17 +74,19 @@ jobs:
           python - <<'PY'
           import os
           import re
+
           from datetime import datetime
+          from zoneinfo import ZoneInfo
+
           from openpyxl import Workbook
           from openpyxl.styles import PatternFill, Font, Alignment
           from openpyxl.utils import get_column_letter
 
           run_date = os.environ["RUN_DATE"]
 
-            from zoneinfo import ZoneInfo
-            current_time = datetime.now(
-                ZoneInfo("Asia/Bangkok")
-            ).strftime("%H:%M")
+          current_time = datetime.now(
+              ZoneInfo("Asia/Bangkok")
+          ).strftime("%H:%M")
 
           files = [
               ("home", "Home"),
@@ -97,6 +99,7 @@ jobs:
           ]
 
           wb = Workbook()
+
           default_sheet = wb.active
           wb.remove(default_sheet)
 
@@ -124,6 +127,7 @@ jobs:
           bold_font = Font(bold=True)
 
           for test_name, sheet_name in files:
+
               ws = wb.create_sheet(title=sheet_name)
 
               ws.append(headers)
@@ -146,6 +150,7 @@ jobs:
                   lines = []
 
               for line in lines:
+
                   text = line.strip()
 
                   success_match = re.match(
@@ -211,13 +216,16 @@ jobs:
 
               ws.freeze_panes = "A2"
 
-            filename = datetime.now(
-                ZoneInfo("Asia/Bangkok")
-            ).strftime("performance-report-%Y-%m-%d-%H-%M.xlsx")
+          filename = datetime.now(
+              ZoneInfo("Asia/Bangkok")
+          ).strftime(
+              "performance-report-%Y-%m-%d-%H-%M.xlsx"
+          )
 
           wb.save(filename)
 
           print(f"Created Excel file: {filename}")
+
           PY
 
       - name: Upload Excel report
@@ -268,6 +276,7 @@ jobs:
           summary_text = ""
 
           for test_name, display_name in files:
+
               report_path = f"reports/{test_name}-report.txt"
 
               success_runs = "N/A"
@@ -275,10 +284,12 @@ jobs:
               average_time = "N/A"
 
               if os.path.exists(report_path):
+
                   with open(report_path, "r", encoding="utf-8") as f:
                       lines = f.readlines()
 
                   for line in lines:
+
                       text = line.strip()
 
                       if text.startswith("Success Runs"):
