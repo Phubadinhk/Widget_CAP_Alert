@@ -28,6 +28,13 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
+      - name: Set run start time
+        shell: bash
+        run: |
+          echo "RUN_START_TIME=$(TZ='Asia/Bangkok' date '+%d/%m/%Y %H:%M:%S')" >> $GITHUB_ENV
+          echo "RUN_START_TIME_ONLY=$(TZ='Asia/Bangkok' date '+%H:%M:%S')" >> $GITHUB_ENV
+          echo "RUN_DATE=$(TZ='Asia/Bangkok' date '+%d/%m/%Y')" >> $GITHUB_ENV
+
       - name: Run performance tests
         shell: bash
         run: |
@@ -68,12 +75,6 @@ jobs:
         run: |
           pip install openpyxl
 
-          RUN_DATE=$(TZ='Asia/Bangkok' date '+%d/%m/%Y')
-          RUN_START_TIME=$(TZ='Asia/Bangkok' date '+%H:%M:%S')
-
-          export RUN_DATE
-          export RUN_START_TIME
-
           python - <<'PY'
           import os
           import re
@@ -86,8 +87,7 @@ jobs:
           from openpyxl.utils import get_column_letter
 
           run_date = os.environ["RUN_DATE"]
-
-          current_time = os.environ["RUN_START_TIME"]
+          current_time = os.environ["RUN_START_TIME_ONLY"]
 
           files = [
               ("home", "Home"),
@@ -100,7 +100,6 @@ jobs:
           ]
 
           wb = Workbook()
-
           default_sheet = wb.active
           wb.remove(default_sheet)
 
@@ -128,7 +127,6 @@ jobs:
           bold_font = Font(bold=True)
 
           for test_name, sheet_name in files:
-
               ws = wb.create_sheet(title=sheet_name)
 
               ws.append(headers)
@@ -151,7 +149,6 @@ jobs:
                   lines = []
 
               for line in lines:
-
                   text = line.strip()
 
                   success_match = re.match(
@@ -226,7 +223,6 @@ jobs:
           wb.save(filename)
 
           print(f"Created Excel file: {filename}")
-
           PY
 
       - name: Upload Excel report
@@ -254,23 +250,15 @@ jobs:
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
           STATUS: ${{ job.status }}
         run: |
-          RUN_START_TIME=$(TZ='Asia/Bangkok' date '+%d/%m/%Y %H:%M:%S')
-
-          export RUN_START_TIME
+          RUN_END_TIME=$(TZ='Asia/Bangkok' date '+%d/%m/%Y %H:%M:%S')
+          export RUN_END_TIME
 
           python - <<'PY'
           import json
           import os
 
-          from datetime import datetime
-          from zoneinfo import ZoneInfo
-
           run_start_time = os.environ["RUN_START_TIME"]
-
-          run_end_time = datetime.now(
-              ZoneInfo("Asia/Bangkok")
-          ).strftime("%d/%m/%Y %H:%M:%S")
-
+          run_end_time = os.environ["RUN_END_TIME"]
           status = os.environ["STATUS"]
 
           files = [
@@ -286,7 +274,6 @@ jobs:
           summary_text = ""
 
           for test_name, display_name in files:
-
               report_path = f"reports/{test_name}-report.txt"
 
               success_runs = "N/A"
@@ -294,12 +281,10 @@ jobs:
               average_time = "N/A"
 
               if os.path.exists(report_path):
-
                   with open(report_path, "r", encoding="utf-8") as f:
                       lines = f.readlines()
 
                   for line in lines:
-
                       text = line.strip()
 
                       if text.startswith("Success Runs"):
@@ -368,7 +353,6 @@ jobs:
               encoding="utf-8"
           ) as f:
               json.dump(payload, f, ensure_ascii=False)
-
           PY
 
           curl -X POST \
