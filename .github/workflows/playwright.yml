@@ -69,7 +69,10 @@ jobs:
           pip install openpyxl
 
           RUN_DATE=$(TZ='Asia/Bangkok' date '+%d/%m/%Y')
+          RUN_START_TIME=$(TZ='Asia/Bangkok' date '+%H:%M:%S')
+
           export RUN_DATE
+          export RUN_START_TIME
 
           python - <<'PY'
           import os
@@ -84,9 +87,7 @@ jobs:
 
           run_date = os.environ["RUN_DATE"]
 
-          current_time = datetime.now(
-              ZoneInfo("Asia/Bangkok")
-          ).strftime("%H:%M")
+          current_time = os.environ["RUN_START_TIME"]
 
           files = [
               ("home", "Home"),
@@ -253,15 +254,24 @@ jobs:
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
           STATUS: ${{ job.status }}
         run: |
-          START_TIME=$(TZ='Asia/Bangkok' date '+%d/%m/%Y %H:%M:%S')
-          export START_TIME
+          RUN_START_TIME=$(TZ='Asia/Bangkok' date '+%d/%m/%Y %H:%M:%S')
+
+          export RUN_START_TIME
 
           python - <<'PY'
           import json
           import os
 
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+
+          run_start_time = os.environ["RUN_START_TIME"]
+
+          run_end_time = datetime.now(
+              ZoneInfo("Asia/Bangkok")
+          ).strftime("%d/%m/%Y %H:%M:%S")
+
           status = os.environ["STATUS"]
-          start_time = os.environ["START_TIME"]
 
           files = [
               ("home", "Home"),
@@ -335,7 +345,12 @@ jobs:
                   },
                   {
                       "type": "TextBlock",
-                      "text": f"Run DateTime (TH): {start_time}",
+                      "text": f"Run Start (TH): {run_start_time}",
+                      "wrap": True
+                  },
+                  {
+                      "type": "TextBlock",
+                      "text": f"Run End (TH): {run_end_time}",
                       "wrap": True
                   },
                   {
