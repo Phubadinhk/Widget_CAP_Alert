@@ -1,20 +1,20 @@
 import { test } from '@playwright/test';
-import { HOME_PERFORMANCE_DATA } from '../test-data/home.data';
-import { HomePerformancePage } from '../page-object/home';
+import { HOME_PERFORMANCE_DATA } from '../test-data/weather_province.data';
+import { HomePerformancePage } from '../page-object/weather_province';
 
-test('Performance Home Page', async () => {
+test('Performance weather_province Page', async () => {
   test.setTimeout(HOME_PERFORMANCE_DATA.TEST_TIMEOUT);
 
   const finishTimes: number[] = [];
 
-  // 🔥 ดึง token จาก .env
+  // ดึง token จาก .env
   const token = process.env.KIOSK_TOKEN;
 
   if (!token) {
     throw new Error('Missing KIOSK_TOKEN in .env');
   }
 
-  // 🔥 ประกอบ URL จริง
+  // ประกอบ URL จริง
   const fullUrl = `${HOME_PERFORMANCE_DATA.BASE_URL}${HOME_PERFORMANCE_DATA.PATH}/${token}`;
 
   for (let i = 1; i <= HOME_PERFORMANCE_DATA.TOTAL_RUNS; i++) {
@@ -24,7 +24,7 @@ test('Performance Home Page', async () => {
       await homePage.openNewBrowserNoCache();
 
       const finishTimeSec = await homePage.gotoAndGetNetworkFinishTime(
-        fullUrl, // ❗ ใช้ตัวนี้แทน URL เดิม
+        fullUrl, //  ใช้ตัวนี้แทน URL เดิม
         HOME_PERFORMANCE_DATA.WAIT_UNTIL,
         HOME_PERFORMANCE_DATA.NAVIGATION_TIMEOUT
       );
