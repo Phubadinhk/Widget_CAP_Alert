@@ -7,15 +7,15 @@ test('Performance Home Page', async () => {
 
   const finishTimes: number[] = [];
 
-  // 🔥 ดึง token จาก .env
   const token = process.env.KIOSK_TOKEN;
 
   if (!token) {
     throw new Error('Missing KIOSK_TOKEN in .env');
   }
 
-  // 🔥 ประกอบ URL จริง
   const fullUrl = `${HOME_PERFORMANCE_DATA.BASE_URL}${HOME_PERFORMANCE_DATA.PATH}/${token}`;
+
+  console.log(`Performance Result Home Page`);
 
   for (let i = 1; i <= HOME_PERFORMANCE_DATA.TOTAL_RUNS; i++) {
     const homePage = new HomePerformancePage();
@@ -24,7 +24,7 @@ test('Performance Home Page', async () => {
       await homePage.openNewBrowserNoCache();
 
       const finishTimeSec = await homePage.gotoAndGetNetworkFinishTime(
-        fullUrl, // ❗ ใช้ตัวนี้แทน URL เดิม
+        fullUrl,
         HOME_PERFORMANCE_DATA.WAIT_UNTIL,
         HOME_PERFORMANCE_DATA.NAVIGATION_TIMEOUT
       );

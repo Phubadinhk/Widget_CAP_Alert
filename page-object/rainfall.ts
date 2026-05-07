@@ -1,6 +1,6 @@
 import { Browser, BrowserContext, Page, chromium } from '@playwright/test';
 
-export class WeatherPerformancePage {
+export class RainfallPerformancePage {
   private browser?: Browser;
   private context?: BrowserContext;
   private page?: Page;

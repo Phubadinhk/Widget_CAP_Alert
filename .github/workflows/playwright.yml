@@ -2,7 +2,7 @@ name: Performance Test
 
 on:
   schedule:
-    - cron: "0 3 * * *" # 08:30 ไทย
+    - cron: "30 8 * * *" # 08:30 ไทย
     - cron: "0 11 * * *" # 18:00 ไทย
   workflow_dispatch:
 
@@ -28,25 +28,54 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      - name: Run performance test
+      - name: Run performance tests
         shell: bash
         run: |
-          set -o pipefail
-          npx playwright test tests/home.spec.ts | tee performance-report.txt
+          mkdir -p reports
+
+          declare -A TEST_MAP=(
+            ["home"]="Home"
+            ["alert_history"]="AlertHistory"
+            ["danger"]="Danger"
+            ["five-day"]="FiveDay"
+            ["rainfall"]="Rainfall"
+            ["temperature"]="Temperature"
+            ["weather_province"]="WeatherProvince"
+          )
+
+          OVERALL_EXIT_CODE=0
+
+          for TEST_NAME in "${!TEST_MAP[@]}"; do
+            echo "===== Running tests/${TEST_NAME}.spec.ts ====="
+
+            set +e
+            npx playwright test "tests/${TEST_NAME}.spec.ts" | tee "reports/${TEST_NAME}-report.txt"
+            TEST_EXIT_CODE=${PIPESTATUS[0]}
+            set -e
+
+            echo "$TEST_EXIT_CODE" > "reports/${TEST_NAME}-status.txt"
+
+            if [ "$TEST_EXIT_CODE" -ne 0 ]; then
+              OVERALL_EXIT_CODE=1
+            fi
+          done
+
+          exit $OVERALL_EXIT_CODE
 
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-performance-report
-          path: playwright-report/
+          path: |
+            playwright-report/
+            reports/
           retention-days: 7
 
-      - name: Send report to Microsoft Teams
+      - name: Send report to Microsoft Teams per test file
         if: always()
         shell: bash
         env:
-          STATUS: ${{ job.status }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           START_TIME=$(TZ='Asia/Bangkok' date '+%d/%m/%Y %H:%M:%S')
@@ -55,84 +84,223 @@ jobs:
           python - <<'PY'
           import json
           import os
+          import subprocess
 
-          status = os.environ["STATUS"]
           run_url = os.environ["RUN_URL"]
           start_time = os.environ.get("START_TIME", "N/A")
+          webhook_url = os.environ["TEAMS_WEBHOOK_URL"]
 
-          report = "No performance report found."
+          files = [
+              ("home", "Home", "tests/home.spec.ts"),
+              ("alert_history", "AlertHistory", "tests/alert_history.spec.ts"),
+              ("danger", "Danger", "tests/danger.spec.ts"),
+              ("five-day", "FiveDay", "tests/five-day.spec.ts"),
+              ("rainfall", "Rainfall", "tests/rainfall.spec.ts"),
+              ("temperature", "Temperature", "tests/temperature.spec.ts"),
+              ("weather_province", "WeatherProvince", "tests/weather_province.spec.ts"),
+          ]
 
-          if os.path.exists("performance-report.txt"):
-              with open("performance-report.txt", "r", encoding="utf-8") as f:
-                  lines = f.readlines()
+          for test_name, sheet_name, test_file in files:
+              report_path = f"reports/{test_name}-report.txt"
+              status_path = f"reports/{test_name}-status.txt"
 
-              report_lines = [
-                  line for line in lines
-                  if line.startswith("Run ที่")
-                  or line.startswith("Total Time")
-                  or line.startswith("Average Time")
-                  or line.startswith("----------------")
-                  or line.startswith("Success Runs")
-              ]
+              exit_code = "1"
+              if os.path.exists(status_path):
+                  with open(status_path, "r", encoding="utf-8") as f:
+                      exit_code = f.read().strip()
 
-              if report_lines:
-                  report = "".join(report_lines)
+              status = "success" if exit_code == "0" else "failed"
 
-          payload = {
-              "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-              "type": "AdaptiveCard",
-              "version": "1.4",
-              "body": [
-                  {
-                      "type": "TextBlock",
-                      "text": "Playwright Performance Report",
-                      "weight": "Bolder",
-                      "size": "Small"
-                  },
-                  {
-                      "type": "TextBlock",
-                      "text": f"Status: {status}",
-                      "wrap": True,
-                      "spacing": "Small",
-                      "size": "Small"
-                  },
-                  {
-                      "type": "TextBlock",
-                      "text": f"Run DateTime (TH): {start_time}",
-                      "wrap": True,
-                      "spacing": "Small",
-                      "size": "Small"
-                  },
-                  {
-                      "type": "TextBlock",
-                      "text": "Performance Result",
-                      "weight": "Bolder",
-                      "wrap": True,
-                      "spacing": "Small",
-                      "size": "Small"
-                  },
-                  {
-                      "type": "TextBlock",
-                      "text": report,
-                      "wrap": True,
-                      "size": "ExtraSmall",
-                      "spacing": "None"
-                  },
-                  {
-                      "type": "TextBlock",
-                      "text": f"Run Report: {run_url}",
-                      "wrap": True,
-                      "spacing": "Small",
-                      "size": "Small"
-                  }
-              ]
-          }
+              report = "No performance report found."
 
-          with open("teams-payload.json", "w", encoding="utf-8") as f:
-              json.dump(payload, f, ensure_ascii=False)
+              if os.path.exists(report_path):
+                  with open(report_path, "r", encoding="utf-8") as f:
+                      lines = f.readlines()
+
+                  report_lines = [
+                      line for line in lines
+                      if line.startswith("Run ที่")
+                      or line.startswith("Total Time")
+                      or line.startswith("Average Time")
+                      or line.startswith("----------------")
+                      or line.startswith("Success Runs")
+                  ]
+
+                  if report_lines:
+                      report = "".join(report_lines)
+
+              payload = {
+                  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                  "type": "AdaptiveCard",
+                  "version": "1.4",
+                  "body": [
+                      {
+                          "type": "TextBlock",
+                          "text": f"Playwright Performance Report - {sheet_name}",
+                          "weight": "Bolder",
+                          "size": "Small"
+                      },
+                      {
+                          "type": "TextBlock",
+                          "text": f"Status: {status}",
+                          "wrap": True,
+                          "spacing": "Small",
+                          "size": "Small"
+                      },
+                      {
+                          "type": "TextBlock",
+                          "text": f"Test File: {test_file}",
+                          "wrap": True,
+                          "spacing": "Small",
+                          "size": "Small"
+                      },
+                      {
+                          "type": "TextBlock",
+                          "text": f"Run DateTime (TH): {start_time}",
+                          "wrap": True,
+                          "spacing": "Small",
+                          "size": "Small"
+                      },
+                      {
+                          "type": "TextBlock",
+                          "text": "Performance Result",
+                          "weight": "Bolder",
+                          "wrap": True,
+                          "spacing": "Small",
+                          "size": "Small"
+                      },
+                      {
+                          "type": "TextBlock",
+                          "text": report,
+                          "wrap": True,
+                          "size": "ExtraSmall",
+                          "spacing": "None"
+                      },
+                      {
+                          "type": "TextBlock",
+                          "text": f"Run Report: {run_url}",
+                          "wrap": True,
+                          "spacing": "Small",
+                          "size": "Small"
+                      }
+                  ]
+              }
+
+              payload_file = f"teams-payload-{test_name}.json"
+
+              with open(payload_file, "w", encoding="utf-8") as f:
+                  json.dump(payload, f, ensure_ascii=False)
+
+              subprocess.run([
+                  "curl",
+                  "-X", "POST",
+                  "-H", "Content-Type: application/json",
+                  "-d", f"@{payload_file}",
+                  webhook_url
+              ], check=False)
           PY
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
 
-          curl -X POST \
-            -H "Content-Type: application/json" \
-            -d @teams-payload.json \
-            "${{ secrets.TEAMS_WEBHOOK_URL }}"
+      - name: Send result to Excel Online per test file
+        if: always()
+        shell: bash
+        env:
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          POWER_AUTOMATE_EXCEL_URL: ${{ secrets.POWER_AUTOMATE_EXCEL_URL }}
+        run: |
+          START_TIME=$(TZ='Asia/Bangkok' date '+%d/%m/%Y %H:%M:%S')
+          RUN_DATE=$(TZ='Asia/Bangkok' date '+%d/%m/%Y')
+          RUN_DATE_KEY=$(TZ='Asia/Bangkok' date '+%Y%m%d')
+          HOUR=$(TZ='Asia/Bangkok' date '+%H')
+
+          if [ "$HOUR" -lt 12 ]; then
+            SCHEDULE_TIME="08:30"
+          else
+            SCHEDULE_TIME="18:00"
+          fi
+
+          export START_TIME RUN_DATE RUN_DATE_KEY SCHEDULE_TIME
+
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+
+          excel_url = os.environ["POWER_AUTOMATE_EXCEL_URL"]
+          run_date = os.environ["RUN_DATE"]
+          run_date_key = os.environ["RUN_DATE_KEY"]
+          schedule_time = os.environ["SCHEDULE_TIME"]
+          run_group = f"{run_date_key}-{schedule_time}"
+
+          files = [
+              ("home", "Home"),
+              ("alert_history", "AlertHistory"),
+              ("danger", "Danger"),
+              ("five-day", "FiveDay"),
+              ("rainfall", "Rainfall"),
+              ("temperature", "Temperature"),
+              ("weather_province", "WeatherProvince"),
+          ]
+
+          for test_name, sheet_name in files:
+              report_path = f"reports/{test_name}-report.txt"
+
+              rows = []
+              total_time = ""
+              average_time = ""
+
+              if os.path.exists(report_path):
+                  with open(report_path, "r", encoding="utf-8") as f:
+                      lines = f.readlines()
+              else:
+                  lines = []
+
+              for line in lines:
+                  text = line.strip()
+
+                  run_match = re.match(r"Run ที่ (\d+): ([\d.]+) s", text)
+                  if run_match:
+                      rows.append({
+                          "RunDate": run_date,
+                          "ScheduleTime": schedule_time,
+                          "RunNo": run_match.group(1),
+                          "LoadTimeSec": run_match.group(2),
+                          "TotalTimeSec": "",
+                          "AverageTimeSec": ""
+                      })
+
+                  if text.startswith("Total Time"):
+                      total_time = text.split(":", 1)[1].replace("s", "").strip()
+
+                  if text.startswith("Average Time"):
+                      average_time = text.split(":", 1)[1].replace("s", "").strip()
+
+              rows.append({
+                  "RunDate": run_date,
+                  "ScheduleTime": schedule_time,
+                  "RunNo": "SUMMARY",
+                  "LoadTimeSec": "",
+                  "TotalTimeSec": total_time,
+                  "AverageTimeSec": average_time
+              })
+
+              payload = {
+                  "SheetName": sheet_name,
+                  "Rows": rows
+              }
+
+              payload_file = f"excel-payload-{test_name}.json"
+
+              with open(payload_file, "w", encoding="utf-8") as f:
+                  json.dump(payload, f, ensure_ascii=False)
+
+              subprocess.run([
+                  "curl",
+                  "-X", "POST",
+                  "-H", "Content-Type: application/json",
+                  "-d", f"@{payload_file}",
+                  excel_url
+              ], check=False)
+          PY

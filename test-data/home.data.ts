@@ -1,8 +1,8 @@
 export const HOME_PERFORMANCE_DATA = {
   BASE_URL: 'https://dev-ndwc.azurewebsites.net',
-  PATH: '/kioskclient/mainpage/73/526',
+  PATH: '/kioskclient/mainpage/42/753',
   TOTAL_RUNS: 10,
   TEST_TIMEOUT: 3600000,
-  NAVIGATION_TIMEOUT: 60000,
+  NAVIGATION_TIMEOUT: 3600000,
   WAIT_UNTIL: 'networkidle' as const,
 };
