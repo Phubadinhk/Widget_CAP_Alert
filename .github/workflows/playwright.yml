@@ -3,7 +3,7 @@ name: Performance Test
 on:
   schedule:
     - cron: "53 0 * * *" # 07:53 ไทย
-    - cron: "43 10 * * *" # 17:43 ไทย
+    - cron: "48 10 * * *" # 17:43 ไทย
     - cron: "14 11 * * *" # 18:14 ไทย
   workflow_dispatch:
 
@@ -70,25 +70,19 @@ jobs:
           pip install openpyxl
 
           RUN_DATE=$(TZ='Asia/Bangkok' date '+%d/%m/%Y')
-          HOUR=$(TZ='Asia/Bangkok' date '+%H')
-
-          if [ "$HOUR" -lt 12 ]; then
-            SCHEDULE_TIME="08:30"
-          else
-            SCHEDULE_TIME="18:00"
-          fi
-
-          export RUN_DATE SCHEDULE_TIME
+          export RUN_DATE
 
           python - <<'PY'
           import os
           import re
+          from datetime import datetime
           from openpyxl import Workbook
           from openpyxl.styles import PatternFill, Font, Alignment
           from openpyxl.utils import get_column_letter
 
           run_date = os.environ["RUN_DATE"]
-          schedule_time = os.environ["SCHEDULE_TIME"]
+
+          current_time = datetime.now().strftime("%H:%M")
 
           files = [
               ("home", "Home"),
@@ -113,8 +107,18 @@ jobs:
               "AverageTimeSec"
           ]
 
-          summary_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
-          header_fill = PatternFill(start_color="D9EAF7", end_color="D9EAF7", fill_type="solid")
+          summary_fill = PatternFill(
+              start_color="FFF2CC",
+              end_color="FFF2CC",
+              fill_type="solid"
+          )
+
+          header_fill = PatternFill(
+              start_color="D9EAF7",
+              end_color="D9EAF7",
+              fill_type="solid"
+          )
+
           bold_font = Font(bold=True)
 
           for test_name, sheet_name in files:
@@ -142,13 +146,20 @@ jobs:
               for line in lines:
                   text = line.strip()
 
-                  success_match = re.match(r"Run ที่ (\d+): ([\d.]+) s", text)
-                  fail_match = re.match(r"Run ที่ (\d+): โหลดไม่สำเร็จ", text)
+                  success_match = re.match(
+                      r"Run ที่ (\d+): ([\d.]+) s",
+                      text
+                  )
+
+                  fail_match = re.match(
+                      r"Run ที่ (\d+): โหลดไม่สำเร็จ",
+                      text
+                  )
 
                   if success_match:
                       rows.append([
                           run_date,
-                          schedule_time,
+                          current_time,
                           success_match.group(1),
                           success_match.group(2),
                           "",
@@ -158,7 +169,7 @@ jobs:
                   elif fail_match:
                       rows.append([
                           run_date,
-                          schedule_time,
+                          current_time,
                           fail_match.group(1),
                           "FAILED",
                           "",
@@ -166,17 +177,19 @@ jobs:
                       ])
 
                   if text.startswith("Total Time"):
-                      total_time = text.split(":", 1)[1].replace("s", "").strip()
+                      total_time = text.split(":", 1)[1] \
+                          .replace("s", "").strip()
 
                   if text.startswith("Average Time"):
-                      average_time = text.split(":", 1)[1].replace("s", "").strip()
+                      average_time = text.split(":", 1)[1] \
+                          .replace("s", "").strip()
 
               for row in rows:
                   ws.append(row)
 
               ws.append([
                   run_date,
-                  schedule_time,
+                  current_time,
                   "SUMMARY",
                   "",
                   total_time,
@@ -184,25 +197,32 @@ jobs:
               ])
 
               summary_row = ws.max_row
+
               for cell in ws[summary_row]:
                   cell.fill = summary_fill
                   cell.font = bold_font
 
               for col in range(1, len(headers) + 1):
-                  ws.column_dimensions[get_column_letter(col)].width = 18
+                  ws.column_dimensions[
+                      get_column_letter(col)
+                  ].width = 20
 
               ws.freeze_panes = "A2"
 
-          from datetime import datetime
-          filename = datetime.now().strftime("performance-report-%Y-%m-%d-%H-%M.xlsx")
+          filename = datetime.now().strftime(
+              "performance-report-%Y-%m-%d-%H-%M.xlsx"
+          )
+
           wb.save(filename)
+
+          print(f"Created Excel file: {filename}")
           PY
 
       - name: Upload Excel report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: performance-report-${{ github.run_number }}
+          name: performance-report-excel
           path: performance-report-*.xlsx
           retention-days: 30
 
@@ -260,13 +280,22 @@ jobs:
                       text = line.strip()
 
                       if text.startswith("Success Runs"):
-                          success_runs = text.replace("Success Runs:", "").strip()
+                          success_runs = text.replace(
+                              "Success Runs:",
+                              ""
+                          ).strip()
 
                       if text.startswith("Total Time"):
-                          total_time = text.replace("Total Time:", "").strip()
+                          total_time = text.replace(
+                              "Total Time:",
+                              ""
+                          ).strip()
 
                       if text.startswith("Average Time"):
-                          average_time = text.replace("Average Time:", "").strip()
+                          average_time = text.replace(
+                              "Average Time:",
+                              ""
+                          ).strip()
 
               summary_text += (
                   f"{display_name}\n"
@@ -300,74 +329,18 @@ jobs:
                       "type": "TextBlock",
                       "text": summary_text,
                       "wrap": True,
-                      "fontType": "Monospace",
                       "size": "Small"
                   }
               ]
           }
 
-          with open("teams-payload.json", "w", encoding="utf-8") as f:
+          with open(
+              "teams-payload.json",
+              "w",
+              encoding="utf-8"
+          ) as f:
               json.dump(payload, f, ensure_ascii=False)
-          PY
 
-          curl -X POST \
-            -H "Content-Type: application/json" \
-            -d @teams-payload.json \
-            "$TEAMS_WEBHOOK_URL"
-        if: always()
-        shell: bash
-        env:
-          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
-          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          STATUS: ${{ job.status }}
-        run: |
-          START_TIME=$(TZ='Asia/Bangkok' date '+%d/%m/%Y %H:%M:%S')
-          export START_TIME
-
-          python - <<'PY'
-          import json
-          import os
-
-          status = os.environ["STATUS"]
-          run_url = os.environ["RUN_URL"]
-          start_time = os.environ["START_TIME"]
-
-          payload = {
-              "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-              "type": "AdaptiveCard",
-              "version": "1.4",
-              "body": [
-                  {
-                      "type": "TextBlock",
-                      "text": "Playwright Performance Report",
-                      "weight": "Bolder",
-                      "size": "Medium"
-                  },
-                  {
-                      "type": "TextBlock",
-                      "text": f"Status: {status}",
-                      "wrap": True
-                  },
-                  {
-                      "type": "TextBlock",
-                      "text": f"Run DateTime (TH): {start_time}",
-                      "wrap": True
-                  },
-                  {
-                      "type": "TextBlock",
-                      "text": "Excel Artifact: performance-report-excel",
-                      "wrap": True
-                  },
-                  {
-                      "type": "TextBlock",
-                      "text": f"Download Report: {run_url}",
-                      "wrap": True
-                  }
-              ]
-          }
-
-          with open("teams-payload.json", "w", encoding="utf-8") as f:
-              json.dump(payload, f, ensure_ascii=False)
           PY
 
           curl -X POST \
