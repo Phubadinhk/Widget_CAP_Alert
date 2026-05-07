@@ -7,12 +7,11 @@ services:
 
     buildCommand: |
       npm ci
-      npx playwright install chromium
 
     startCommand: |
-      npm run performance:render
+      npx playwright install chromium && npm run performance:render
 
-    schedule: "32 11 * * *"
+    schedule: "48 11 * * *"
 
     envVars:
       - key: KIOSK_TOKEN
