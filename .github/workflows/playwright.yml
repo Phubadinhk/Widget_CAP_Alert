@@ -3,7 +3,7 @@ name: Performance Test
 on:
   schedule:
     - cron: "11 22 * * *" # 05:11 ไทย
-    - cron: "32 8 * * *"  # 15:32 ไทย
+    - cron: "32 8 * * *" # 15:32 ไทย
   workflow_dispatch:
 
 jobs:
@@ -81,7 +81,10 @@ jobs:
 
           run_date = os.environ["RUN_DATE"]
 
-          current_time = datetime.now().strftime("%H:%M")
+            from zoneinfo import ZoneInfo
+            current_time = datetime.now(
+                ZoneInfo("Asia/Bangkok")
+            ).strftime("%H:%M")
 
           files = [
               ("home", "Home"),
@@ -208,9 +211,9 @@ jobs:
 
               ws.freeze_panes = "A2"
 
-          filename = datetime.now().strftime(
-              "performance-report-%Y-%m-%d-%H-%M.xlsx"
-          )
+            filename = datetime.now(
+                ZoneInfo("Asia/Bangkok")
+            ).strftime("performance-report-%Y-%m-%d-%H-%M.xlsx")
 
           wb.save(filename)
 
