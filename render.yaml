@@ -1,0 +1,22 @@
+services:
+  - type: cron
+    name: playwright-performance-test
+    runtime: node
+    repo: https://github.com/Phubadinhk/Widget_CAP_Alert
+    branch: main
+
+    buildCommand: |
+      npm ci
+      npx playwright install --with-deps
+
+    startCommand: |
+      npx playwright test
+
+    schedule: "53 0,11 * * *"
+
+    envVars:
+      - key: KIOSK_TOKEN
+        sync: false
+
+      - key: TEAMS_WEBHOOK_URL
+        sync: false
