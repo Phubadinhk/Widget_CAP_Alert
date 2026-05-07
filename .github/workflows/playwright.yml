@@ -2,7 +2,7 @@ name: Performance Test
 
 on:
   schedule:
-    - cron: "30 8 * * *" # 08:30 ไทย
+    - cron: "30 1 * * *" # 08:30 ไทย
     - cron: "0 11 * * *" # 18:00 ไทย
   workflow_dispatch:
 
@@ -33,19 +33,19 @@ jobs:
         run: |
           mkdir -p reports
 
-          declare -A TEST_MAP=(
-            ["home"]="Home"
-            ["alert_history"]="AlertHistory"
-            ["danger"]="Danger"
-            ["five-day"]="FiveDay"
-            ["rainfall"]="Rainfall"
-            ["temperature"]="Temperature"
-            ["weather_province"]="WeatherProvince"
+          TEST_FILES=(
+            "home"
+            "alert_history"
+            "danger"
+            "five-day"
+            "rainfall"
+            "temperature"
+            "weather_province"
           )
 
           OVERALL_EXIT_CODE=0
 
-          for TEST_NAME in "${!TEST_MAP[@]}"; do
+          for TEST_NAME in "${TEST_FILES[@]}"; do
             echo "===== Running tests/${TEST_NAME}.spec.ts ====="
 
             set +e
@@ -77,6 +77,7 @@ jobs:
         shell: bash
         env:
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
         run: |
           START_TIME=$(TZ='Asia/Bangkok' date '+%d/%m/%Y %H:%M:%S')
           export START_TIME
@@ -199,17 +200,13 @@ jobs:
                   webhook_url
               ], check=False)
           PY
-        env:
-          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
 
       - name: Send result to Excel Online per test file
         if: always()
         shell: bash
         env:
-          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           POWER_AUTOMATE_EXCEL_URL: ${{ secrets.POWER_AUTOMATE_EXCEL_URL }}
         run: |
-          START_TIME=$(TZ='Asia/Bangkok' date '+%d/%m/%Y %H:%M:%S')
           RUN_DATE=$(TZ='Asia/Bangkok' date '+%d/%m/%Y')
           RUN_DATE_KEY=$(TZ='Asia/Bangkok' date '+%Y%m%d')
           HOUR=$(TZ='Asia/Bangkok' date '+%H')
@@ -220,7 +217,7 @@ jobs:
             SCHEDULE_TIME="18:00"
           fi
 
-          export START_TIME RUN_DATE RUN_DATE_KEY SCHEDULE_TIME
+          export RUN_DATE RUN_DATE_KEY SCHEDULE_TIME
 
           python - <<'PY'
           import json
@@ -230,9 +227,7 @@ jobs:
 
           excel_url = os.environ["POWER_AUTOMATE_EXCEL_URL"]
           run_date = os.environ["RUN_DATE"]
-          run_date_key = os.environ["RUN_DATE_KEY"]
           schedule_time = os.environ["SCHEDULE_TIME"]
-          run_group = f"{run_date_key}-{schedule_time}"
 
           files = [
               ("home", "Home"),
