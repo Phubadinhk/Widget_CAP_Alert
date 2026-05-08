@@ -7,7 +7,7 @@ export class DangerPerformancePage {
 
   async openNewBrowser(): Promise<void> {
     this.browser = await chromium.launch({
-      headless: false,
+      headless: true,
     });
 
     this.context = await this.browser.newContext({
