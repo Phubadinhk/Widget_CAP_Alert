@@ -3,7 +3,7 @@ name: Performance Test
 on:
   schedule:
     - cron: "11 22 * * *" # 05:11 ไทย
-    - cron: "32 8 * * *"  # 15:32 ไทย
+    - cron: "32 8 * * *" # 15:32 ไทย
   workflow_dispatch:
 
 jobs:
@@ -90,13 +90,13 @@ jobs:
           current_time = os.environ["RUN_START_TIME_ONLY"]
 
           files = [
-              ("home", "Home"),
-              ("alert_history", "AlertHistory"),
-              ("danger", "Danger"),
-              ("five-day", "FiveDay"),
-              ("rainfall", "Rainfall"),
-              ("temperature", "Temperature"),
-              ("weather_province", "WeatherProvince"),
+              ("home", "MainPage"),
+              ("alert_history", "DisasterAlertHistory"),
+              ("danger", "DangerSituation"),
+              ("five-day", "wrf5Day"),
+              ("rainfall", "CumulativeRainfall"),
+              ("temperature", "wrf24hr"),
+              ("weather_province", "WeatherByProvincePage"),
           ]
 
           wb = Workbook()
@@ -109,7 +109,10 @@ jobs:
               "RunNo",
               "LoadTimeSec",
               "TotalTimeSec",
-              "AverageTimeSec"
+              "AverageTimeSec",
+              "MedianTimeSec",
+              "MinTimeSec",
+              "MaxTimeSec"
           ]
 
           summary_fill = PatternFill(
@@ -141,6 +144,9 @@ jobs:
               rows = []
               total_time = ""
               average_time = ""
+              median_time = ""
+              min_time = ""
+              max_time = ""
 
               if os.path.exists(report_path):
                   with open(report_path, "r", encoding="utf-8") as f:
@@ -168,6 +174,9 @@ jobs:
                           success_match.group(1),
                           success_match.group(2),
                           "",
+                          "",
+                          "",
+                          "",
                           ""
                       ])
 
@@ -177,6 +186,9 @@ jobs:
                           current_time,
                           fail_match.group(1),
                           "FAILED",
+                          "",
+                          "",
+                          "",
                           "",
                           ""
                       ])
@@ -189,6 +201,18 @@ jobs:
                       average_time = text.split(":", 1)[1] \
                           .replace("s", "").strip()
 
+                  if text.startswith("Median Time"):
+                      median_time = text.split(":", 1)[1] \
+                          .replace("s", "").strip()
+
+                  if text.startswith("Min Time"):
+                      min_time = text.split(":", 1)[1] \
+                          .replace("s", "").strip()
+
+                  if text.startswith("Max Time"):
+                      max_time = text.split(":", 1)[1] \
+                          .replace("s", "").strip()
+
               for row in rows:
                   ws.append(row)
 
@@ -198,7 +222,10 @@ jobs:
                   "SUMMARY",
                   "",
                   total_time,
-                  average_time
+                  average_time,
+                  median_time,
+                  min_time,
+                  max_time
               ])
 
               summary_row = ws.max_row
@@ -262,13 +289,13 @@ jobs:
           status = os.environ["STATUS"]
 
           files = [
-              ("home", "Home"),
-              ("alert_history", "AlertHistory"),
-              ("danger", "Danger"),
-              ("five-day", "FiveDay"),
-              ("rainfall", "Rainfall"),
-              ("temperature", "Temperature"),
-              ("weather_province", "WeatherProvince"),
+              ("home", "MainPage"),
+              ("alert_history", "DisasterAlertHistory"),
+              ("danger", "DangerSituation"),
+              ("five-day", "wrf5Day"),
+              ("rainfall", "CumulativeRainfall"),
+              ("temperature", "wrf24hr"),
+              ("weather_province", "WeatherByProvincePage"),
           ]
 
           summary_text = ""
@@ -279,6 +306,9 @@ jobs:
               success_runs = "N/A"
               total_time = "N/A"
               average_time = "N/A"
+              median_time = "N/A"
+              min_time = "N/A"
+              max_time = "N/A"
 
               if os.path.exists(report_path):
                   with open(report_path, "r", encoding="utf-8") as f:
@@ -305,11 +335,32 @@ jobs:
                               ""
                           ).strip()
 
+                      if text.startswith("Median Time"):
+                          median_time = text.replace(
+                              "Median Time:",
+                              ""
+                          ).strip()
+
+                      if text.startswith("Min Time"):
+                          min_time = text.replace(
+                              "Min Time:",
+                              ""
+                          ).strip()
+
+                      if text.startswith("Max Time"):
+                          max_time = text.replace(
+                              "Max Time:",
+                              ""
+                          ).strip()
+
               summary_text += (
                   f"{display_name}\n"
                   f"Success Runs: {success_runs}\n"
                   f"Total Time: {total_time}\n"
-                  f"Average Time: {average_time}\n\n"
+                  f"Average Time: {average_time}\n"
+                  f"Median Time: {median_time}\n"
+                  f"Min Time: {min_time}\n"
+                  f"Max Time: {max_time}\n\n"
               )
 
           payload = {

@@ -1,6 +1,6 @@
 export const DANGER_PERFORMANCE_DATA = {
-  BASE_URL: 'https://dev-ndwc.azurewebsites.net',
-  ROOT_URL: 'https://dev-ndwc.azurewebsites.net',
+  BASE_URL: 'https://ndwc-cap-kiosk-dev.azurewebsites.net',
+  ROOT_URL: 'https://ndwc-cap-kiosk-dev.azurewebsites.net',
   PATH: '/KioskClient/DangerSituation/DangerEvent/42',
   TOTAL_RUNS: 10,
   TEST_TIMEOUT: 3600000,

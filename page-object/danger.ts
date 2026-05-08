@@ -1,4 +1,4 @@
-import { Browser, BrowserContext, Page, chromium } from '@playwright/test';
+import { Browser, BrowserContext, Page, chromium } from "@playwright/test";
 
 export class DangerPerformancePage {
   private browser?: Browser;
@@ -7,64 +7,51 @@ export class DangerPerformancePage {
 
   async openNewBrowser(): Promise<void> {
     this.browser = await chromium.launch({
-      headless: true,
+      headless: false,
     });
 
     this.context = await this.browser.newContext({
       ignoreHTTPSErrors: true,
-      locale: 'th-TH',
+      locale: "th-TH",
     });
 
     this.page = await this.context.newPage();
 
-    this.page.on('response', async (response) => {
+    this.page.on("response", async (response) => {
       if (response.status() === 401) {
-        console.log('401 =>', response.url());
+        console.log("401 =>", response.url());
       }
     });
   }
 
-  async gotoRootThenTargetAndGetNetworkFinishTime(
-    rootUrl: string,
-    targetUrl: string,
-    waitUntil: 'load' | 'domcontentloaded' | 'networkidle',
-    timeout: number
+  async gotoAndGetNetworkFinishTime(
+    url: string,
+    waitUntil: "load" | "domcontentloaded" | "networkidle",
+    timeout: number,
   ): Promise<number> {
     if (!this.page) {
-      throw new Error('Page is not initialized');
+      throw new Error("Page is not initialized");
     }
 
-    
-
-    const rootResponse = await this.page.goto(rootUrl, {
-      waitUntil: 'networkidle',
-      timeout,
-    });
-
-    
-
-    await this.page.waitForTimeout(3000);
-
-
-    const response = await this.page.goto(targetUrl, {
+    const response = await this.page.goto(url, {
       waitUntil,
       timeout,
     });
 
+    const status = response?.status();
 
-
-    if (response?.status() === 401) {
-      const bodyText = await this.page.textContent('body');
-      console.log('BODY:', bodyText);
-      throw new Error('Page returned 401 Unauthorized');
+    if (status !== 200) {
+      throw new Error(`Expected status 200 but received ${status}`);
     }
 
     const finishTimeMs = await this.page.evaluate(() => {
-      const resources =
-        performance.getEntriesByType('resource') as PerformanceResourceTiming[];
+      const resources = performance.getEntriesByType(
+        "resource",
+      ) as PerformanceResourceTiming[];
 
-      const navigations =
-        performance.getEntriesByType('navigation') as PerformanceNavigationTiming[];
+      const navigations = performance.getEntriesByType(
+        "navigation",
+      ) as PerformanceNavigationTiming[];
 
       const resourceEndTimes = resources.map((r) => r.responseEnd || 0);
       const navEnd = navigations[0]?.responseEnd || 0;

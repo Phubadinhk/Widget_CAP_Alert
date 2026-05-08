@@ -1,11 +1,11 @@
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 dotenv.config();
 
-import { test } from '@playwright/test';
-import { DANGER_PERFORMANCE_DATA } from '../test-data/danger.data';
-import { DangerPerformancePage } from '../page-object/danger';
+import { test } from "@playwright/test";
+import { DANGER_PERFORMANCE_DATA } from "../test-data/danger.data";
+import { DangerPerformancePage } from "../page-object/danger";
 
-test('Performance danger Page', async () => {
+test("Performance DangerSituation Page", async () => {
   test.setTimeout(DANGER_PERFORMANCE_DATA.TEST_TIMEOUT);
 
   const finishTimes: number[] = [];
@@ -13,14 +13,14 @@ test('Performance danger Page', async () => {
   const token = process.env.KIOSK_TOKEN?.trim();
 
   if (!token) {
-    throw new Error('Missing KIOSK_TOKEN in .env');
+    throw new Error("Missing KIOSK_TOKEN in .env");
   }
 
   const fullUrl =
     `${DANGER_PERFORMANCE_DATA.BASE_URL}` +
     `${DANGER_PERFORMANCE_DATA.PATH}/${token}`;
 
-  console.log(`Performance Result Danger Page`); 
+  console.log(`Performance Result DangerSituation Page`);
 
   for (let i = 1; i <= DANGER_PERFORMANCE_DATA.TOTAL_RUNS; i++) {
     const dangerPage = new DangerPerformancePage();
@@ -28,13 +28,11 @@ test('Performance danger Page', async () => {
     try {
       await dangerPage.openNewBrowser();
 
-      const finishTimeSec =
-        await dangerPage.gotoRootThenTargetAndGetNetworkFinishTime(
-          DANGER_PERFORMANCE_DATA.ROOT_URL,
-          fullUrl,
-          DANGER_PERFORMANCE_DATA.WAIT_UNTIL,
-          DANGER_PERFORMANCE_DATA.NAVIGATION_TIMEOUT
-        );
+      const finishTimeSec = await dangerPage.gotoAndGetNetworkFinishTime(
+        fullUrl,
+        DANGER_PERFORMANCE_DATA.WAIT_UNTIL,
+        DANGER_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
+      );
 
       finishTimes.push(finishTimeSec);
 
@@ -47,10 +45,41 @@ test('Performance danger Page', async () => {
   }
 
   const totalTime = finishTimes.reduce((sum, time) => sum + time, 0);
-  const averageTime = finishTimes.length ? totalTime / finishTimes.length : 0;
 
-  console.log('----------------------------');
-  console.log(`Success Runs: ${finishTimes.length}/${DANGER_PERFORMANCE_DATA.TOTAL_RUNS}`);
+  const averageTime =
+    finishTimes.length > 0 ? totalTime / finishTimes.length : 0;
+
+  const sortedTimes = [...finishTimes].sort((a, b) => a - b);
+
+  let medianTime = 0;
+
+  if (sortedTimes.length > 0) {
+    const middleIndex = Math.floor(sortedTimes.length / 2);
+
+    medianTime =
+      sortedTimes.length % 2 === 0
+        ? (sortedTimes[middleIndex - 1] + sortedTimes[middleIndex]) / 2
+        : sortedTimes[middleIndex];
+  }
+
+  const minTime = sortedTimes.length > 0 ? sortedTimes[0] : 0;
+
+  const maxTime =
+    sortedTimes.length > 0 ? sortedTimes[sortedTimes.length - 1] : 0;
+
+  console.log("----------------------------");
+
+  console.log(
+    `Success Runs: ${finishTimes.length}/${DANGER_PERFORMANCE_DATA.TOTAL_RUNS}`,
+  );
+
   console.log(`Total Time: ${totalTime.toFixed(2)} s`);
+
   console.log(`Average Time: ${averageTime.toFixed(2)} s`);
+
+  console.log(`Median Time: ${medianTime.toFixed(2)} s`);
+
+  console.log(`Min Time: ${minTime.toFixed(2)} s`);
+
+  console.log(`Max Time: ${maxTime.toFixed(2)} s`);
 });
