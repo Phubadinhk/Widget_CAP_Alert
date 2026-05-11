@@ -22,55 +22,77 @@ export class RainfallPerformancePage {
     rootUrl: string,
     targetUrl: string,
     waitUntil: "load" | "domcontentloaded" | "networkidle",
-    timeout: number,
+    rootTimeout: number,
+    targetTimeout: number,
   ): Promise<number> {
     if (!this.page) {
-      throw new Error("Page is not initialized");
+      throw new Error("PAGE_INITIALIZE_ERROR: เกิด Error ตอนสร้าง Page");
     }
 
-    const rootResponse = await this.page.goto(rootUrl, {
-      waitUntil: "networkidle",
-      timeout,
-    });
+    try {
+      const rootResponse = await this.page.goto(rootUrl, {
+        waitUntil: "networkidle",
+        timeout: rootTimeout,
+      });
 
-    const rootStatus = rootResponse?.status();
+      const rootStatus = rootResponse?.status();
 
-    if (rootStatus !== 200) {
+      if (rootStatus !== 200) {
+        throw new Error(`Status: ${rootStatus}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
       throw new Error(
-        `Root page expected status 200 but received ${rootStatus}`,
+        `NORMAL_PAGE_LOAD_ERROR: Error ที่การโหลดหน้าเว็บปกติ ไม่ใช่ Performance ของหน้าที่ทดสอบ | URL: ${rootUrl} | ${message}`,
       );
     }
 
     await this.page.waitForTimeout(3000);
 
-    const response = await this.page.goto(targetUrl, {
-      waitUntil,
-      timeout,
-    });
+    try {
+      const response = await this.page.goto(targetUrl, {
+        waitUntil,
+        timeout: targetTimeout,
+      });
 
-    const status = response?.status();
+      const status = response?.status();
 
-    if (status !== 200) {
-      throw new Error(`Target page expected status 200 but received ${status}`);
+      if (status !== 200) {
+        throw new Error(`Status: ${status}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      throw new Error(
+        `PERFORMANCE_PAGE_LOAD_ERROR: Error ที่หน้าทดสอบ Performance | URL: ${targetUrl} | ${message}`,
+      );
     }
 
-    const finishTimeMs = await this.page.evaluate(() => {
-      const resources = performance.getEntriesByType(
-        "resource",
-      ) as PerformanceResourceTiming[];
+    try {
+      const finishTimeMs = await this.page.evaluate(() => {
+        const resources = performance.getEntriesByType(
+          "resource",
+        ) as PerformanceResourceTiming[];
 
-      const navigations = performance.getEntriesByType(
-        "navigation",
-      ) as PerformanceNavigationTiming[];
+        const navigations = performance.getEntriesByType(
+          "navigation",
+        ) as PerformanceNavigationTiming[];
 
-      const resourceEndTimes = resources.map((r) => r.responseEnd || 0);
+        const resourceEndTimes = resources.map((r) => r.responseEnd || 0);
+        const navEnd = navigations[0]?.responseEnd || 0;
 
-      const navEnd = navigations[0]?.responseEnd || 0;
+        return Math.max(navEnd, ...resourceEndTimes);
+      });
 
-      return Math.max(navEnd, ...resourceEndTimes);
-    });
+      return finishTimeMs / 1000;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
 
-    return finishTimeMs / 1000;
+      throw new Error(
+        `PERFORMANCE_MEASURE_ERROR: Error ตอนวัดเวลา Performance | ${message}`,
+      );
+    }
   }
 
   async close(): Promise<void> {

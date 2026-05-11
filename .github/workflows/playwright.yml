@@ -2,7 +2,7 @@ name: Performance Test
 
 on:
   schedule:
-    - cron: "11 22 * * *" # 05:11 ไทย
+    - cron: "11 23 * * *" # 06:11 ไทย
     - cron: "32 8 * * *" # 15:32 ไทย
   workflow_dispatch:
 
@@ -34,11 +34,14 @@ jobs:
           echo "RUN_START_TIME=$(TZ='Asia/Bangkok' date '+%d/%m/%Y %H:%M:%S')" >> $GITHUB_ENV
           echo "RUN_START_TIME_ONLY=$(TZ='Asia/Bangkok' date '+%H:%M:%S')" >> $GITHUB_ENV
           echo "RUN_DATE=$(TZ='Asia/Bangkok' date '+%d/%m/%Y')" >> $GITHUB_ENV
+          echo "RUN_URL=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_ENV
+          echo "ARTIFACT_URL=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" >> $GITHUB_ENV
 
       - name: Run performance tests
         shell: bash
         run: |
           mkdir -p reports
+          mkdir -p blob-reports
 
           TEST_FILES=(
             "home"
@@ -55,17 +58,32 @@ jobs:
           for TEST_NAME in "${TEST_FILES[@]}"; do
             echo "===== Running tests/${TEST_NAME}.spec.ts ====="
 
+            rm -rf blob-report
+
             set +e
-            npx playwright test "tests/${TEST_NAME}.spec.ts" | tee "reports/${TEST_NAME}-report.txt"
+            npx playwright test "tests/${TEST_NAME}.spec.ts" --reporter=line,blob | tee "reports/${TEST_NAME}-report.txt"
             TEST_EXIT_CODE=${PIPESTATUS[0]}
             set -e
 
             echo "$TEST_EXIT_CODE" > "reports/${TEST_NAME}-status.txt"
 
+            if [ -d "blob-report" ]; then
+              mv blob-report/*.zip "blob-reports/${TEST_NAME}.zip"
+            fi
+
             if [ "$TEST_EXIT_CODE" -ne 0 ]; then
               OVERALL_EXIT_CODE=1
             fi
           done
+
+          echo "===== Merge Playwright HTML Report ====="
+          rm -rf playwright-report
+
+          if [ "$(ls -A blob-reports 2>/dev/null)" ]; then
+            npx playwright merge-reports --reporter=html blob-reports
+          else
+            echo "No blob reports found"
+          fi
 
           exit $OVERALL_EXIT_CODE
 
@@ -78,7 +96,6 @@ jobs:
           python - <<'PY'
           import os
           import re
-
           from datetime import datetime
           from zoneinfo import ZoneInfo
 
@@ -100,38 +117,31 @@ jobs:
           ]
 
           wb = Workbook()
-          default_sheet = wb.active
-          wb.remove(default_sheet)
+          wb.remove(wb.active)
 
           headers = [
               "RunDate",
               "ScheduleTime",
               "RunNo",
               "LoadTimeSec",
+              "ErrorType",
+              "ErrorDetail",
+              "SuccessRuns",
+              "FailedRuns",
               "TotalTimeSec",
               "AverageTimeSec",
               "MedianTimeSec",
               "MinTimeSec",
-              "MaxTimeSec"
+              "MaxTimeSec",
           ]
 
-          summary_fill = PatternFill(
-              start_color="FFF2CC",
-              end_color="FFF2CC",
-              fill_type="solid"
-          )
-
-          header_fill = PatternFill(
-              start_color="D9EAF7",
-              end_color="D9EAF7",
-              fill_type="solid"
-          )
-
+          header_fill = PatternFill(start_color="D9EAF7", end_color="D9EAF7", fill_type="solid")
+          summary_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+          fail_fill = PatternFill(start_color="F4CCCC", end_color="F4CCCC", fill_type="solid")
           bold_font = Font(bold=True)
 
           for test_name, sheet_name in files:
               ws = wb.create_sheet(title=sheet_name)
-
               ws.append(headers)
 
               for cell in ws[1]:
@@ -142,113 +152,130 @@ jobs:
               report_path = f"reports/{test_name}-report.txt"
 
               rows = []
+              error_map = {}
+
+              success_runs = ""
+              failed_runs = ""
               total_time = ""
               average_time = ""
               median_time = ""
               min_time = ""
               max_time = ""
 
+              lines = []
+
               if os.path.exists(report_path):
                   with open(report_path, "r", encoding="utf-8") as f:
                       lines = f.readlines()
-              else:
-                  lines = []
 
               for line in lines:
                   text = line.strip()
 
-                  success_match = re.match(
-                      r"Run ที่ (\d+): ([\d.]+) s",
-                      text
-                  )
-
-                  fail_match = re.match(
-                      r"Run ที่ (\d+): โหลดไม่สำเร็จ",
-                      text
-                  )
+                  success_match = re.match(r"Run ที่ (\d+): ([\d.]+) s", text)
+                  fail_match = re.match(r"Run ที่ (\d+): โหลดไม่สำเร็จ", text)
+                  error_summary_match = re.match(r"Run (\d+): (.*?) \| (.*)", text)
 
                   if success_match:
-                      rows.append([
-                          run_date,
-                          current_time,
-                          success_match.group(1),
-                          success_match.group(2),
-                          "",
-                          "",
-                          "",
-                          "",
-                          ""
-                      ])
+                      rows.append({
+                          "run_no": success_match.group(1),
+                          "load_time": success_match.group(2),
+                          "error_type": "",
+                          "error_detail": "",
+                      })
 
                   elif fail_match:
-                      rows.append([
-                          run_date,
-                          current_time,
-                          fail_match.group(1),
-                          "FAILED",
-                          "",
-                          "",
-                          "",
-                          "",
-                          ""
-                      ])
+                      rows.append({
+                          "run_no": fail_match.group(1),
+                          "load_time": "FAILED",
+                          "error_type": "",
+                          "error_detail": "",
+                      })
+
+                  elif error_summary_match:
+                      run_no = error_summary_match.group(1)
+                      error_map[run_no] = {
+                          "error_type": error_summary_match.group(2),
+                          "error_detail": error_summary_match.group(3),
+                      }
+
+                  if text.startswith("Success Runs"):
+                      success_runs = text.split(":", 1)[1].strip()
+
+                  if text.startswith("Failed Runs"):
+                      failed_runs = text.split(":", 1)[1].strip()
 
                   if text.startswith("Total Time"):
-                      total_time = text.split(":", 1)[1] \
-                          .replace("s", "").strip()
+                      total_time = text.split(":", 1)[1].replace("s", "").strip()
 
                   if text.startswith("Average Time"):
-                      average_time = text.split(":", 1)[1] \
-                          .replace("s", "").strip()
+                      average_time = text.split(":", 1)[1].replace("s", "").strip()
 
                   if text.startswith("Median Time"):
-                      median_time = text.split(":", 1)[1] \
-                          .replace("s", "").strip()
+                      median_time = text.split(":", 1)[1].replace("s", "").strip()
 
                   if text.startswith("Min Time"):
-                      min_time = text.split(":", 1)[1] \
-                          .replace("s", "").strip()
+                      min_time = text.split(":", 1)[1].replace("s", "").strip()
 
                   if text.startswith("Max Time"):
-                      max_time = text.split(":", 1)[1] \
-                          .replace("s", "").strip()
+                      max_time = text.split(":", 1)[1].replace("s", "").strip()
 
               for row in rows:
-                  ws.append(row)
+                  run_no = row["run_no"]
+
+                  if run_no in error_map:
+                      row["error_type"] = error_map[run_no]["error_type"]
+                      row["error_detail"] = error_map[run_no]["error_detail"]
+
+                  ws.append([
+                      run_date,
+                      current_time,
+                      run_no,
+                      row["load_time"],
+                      row["error_type"],
+                      row["error_detail"],
+                      "",
+                      "",
+                      "",
+                      "",
+                      "",
+                      "",
+                      "",
+                  ])
+
+                  if row["load_time"] == "FAILED":
+                      for cell in ws[ws.max_row]:
+                          cell.fill = fail_fill
 
               ws.append([
                   run_date,
                   current_time,
                   "SUMMARY",
                   "",
+                  "",
+                  "",
+                  success_runs,
+                  failed_runs,
                   total_time,
                   average_time,
                   median_time,
                   min_time,
-                  max_time
+                  max_time,
               ])
 
-              summary_row = ws.max_row
-
-              for cell in ws[summary_row]:
+              for cell in ws[ws.max_row]:
                   cell.fill = summary_fill
                   cell.font = bold_font
 
               for col in range(1, len(headers) + 1):
-                  ws.column_dimensions[
-                      get_column_letter(col)
-                  ].width = 20
+                  ws.column_dimensions[get_column_letter(col)].width = 25
 
               ws.freeze_panes = "A2"
 
           filename = datetime.now(
               ZoneInfo("Asia/Bangkok")
-          ).strftime(
-              "performance-report-%Y-%m-%d-%H-%M.xlsx"
-          )
+          ).strftime("performance-report-%Y-%m-%d-%H-%M.xlsx")
 
           wb.save(filename)
-
           print(f"Created Excel file: {filename}")
           PY
 
@@ -268,6 +295,7 @@ jobs:
           path: |
             playwright-report/
             reports/
+            blob-reports/
           retention-days: 7
 
       - name: Send summary to Microsoft Teams
@@ -283,10 +311,13 @@ jobs:
           python - <<'PY'
           import json
           import os
+          import re
 
           run_start_time = os.environ["RUN_START_TIME"]
           run_end_time = os.environ["RUN_END_TIME"]
           status = os.environ["STATUS"]
+          run_url = os.environ["RUN_URL"]
+          artifact_url = os.environ["ARTIFACT_URL"]
 
           files = [
               ("home", "MainPage"),
@@ -304,11 +335,13 @@ jobs:
               report_path = f"reports/{test_name}-report.txt"
 
               success_runs = "N/A"
+              failed_runs = "N/A"
               total_time = "N/A"
               average_time = "N/A"
               median_time = "N/A"
               min_time = "N/A"
               max_time = "N/A"
+              error_summary = []
 
               if os.path.exists(report_path):
                   with open(report_path, "r", encoding="utf-8") as f:
@@ -318,49 +351,48 @@ jobs:
                       text = line.strip()
 
                       if text.startswith("Success Runs"):
-                          success_runs = text.replace(
-                              "Success Runs:",
-                              ""
-                          ).strip()
+                          success_runs = text.replace("Success Runs:", "").strip()
+
+                      if text.startswith("Failed Runs"):
+                          failed_runs = text.replace("Failed Runs:", "").strip()
 
                       if text.startswith("Total Time"):
-                          total_time = text.replace(
-                              "Total Time:",
-                              ""
-                          ).strip()
+                          total_time = text.replace("Total Time:", "").strip()
 
                       if text.startswith("Average Time"):
-                          average_time = text.replace(
-                              "Average Time:",
-                              ""
-                          ).strip()
+                          average_time = text.replace("Average Time:", "").strip()
 
                       if text.startswith("Median Time"):
-                          median_time = text.replace(
-                              "Median Time:",
-                              ""
-                          ).strip()
+                          median_time = text.replace("Median Time:", "").strip()
 
                       if text.startswith("Min Time"):
-                          min_time = text.replace(
-                              "Min Time:",
-                              ""
-                          ).strip()
+                          min_time = text.replace("Min Time:", "").strip()
 
                       if text.startswith("Max Time"):
-                          max_time = text.replace(
-                              "Max Time:",
-                              ""
-                          ).strip()
+                          max_time = text.replace("Max Time:", "").strip()
+
+                      error_match = re.match(r"Run (\d+): (.*?) \|", text)
+
+                      if error_match:
+                          run_no = error_match.group(1)
+                          error_type = error_match.group(2)
+                          error_summary.append(f"Run {run_no}: {error_type}")
+
+              error_text = "No Errors"
+
+              if error_summary:
+                  error_text = "\n".join(error_summary[:10])
 
               summary_text += (
                   f"{display_name}\n"
                   f"Success Runs: {success_runs}\n"
+                  f"Failed Runs: {failed_runs}\n"
                   f"Total Time: {total_time}\n"
                   f"Average Time: {average_time}\n"
                   f"Median Time: {median_time}\n"
                   f"Min Time: {min_time}\n"
-                  f"Max Time: {max_time}\n\n"
+                  f"Max Time: {max_time}\n"
+                  f"Error Summary:\n{error_text}\n\n"
               )
 
           payload = {
@@ -391,6 +423,16 @@ jobs:
                   },
                   {
                       "type": "TextBlock",
+                      "text": f"Run Report: {run_url}",
+                      "wrap": True
+                  },
+                  {
+                      "type": "TextBlock",
+                      "text": f"Artifacts: {artifact_url}",
+                      "wrap": True
+                  },
+                  {
+                      "type": "TextBlock",
                       "text": summary_text,
                       "wrap": True,
                       "size": "Small"
@@ -398,11 +440,7 @@ jobs:
               ]
           }
 
-          with open(
-              "teams-payload.json",
-              "w",
-              encoding="utf-8"
-          ) as f:
+          with open("teams-payload.json", "w", encoding="utf-8") as f:
               json.dump(payload, f, ensure_ascii=False)
           PY
 

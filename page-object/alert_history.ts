@@ -24,42 +24,81 @@ export class AlertHistoryPerformancePage {
     });
   }
 
-  async gotoAndGetNetworkFinishTime(
-    url: string,
+  async gotoRootThenTargetAndGetNetworkFinishTime(
+    rootUrl: string,
+    targetUrl: string,
     waitUntil: "load" | "domcontentloaded" | "networkidle",
-    timeout: number,
+    rootTimeout: number,
+    targetTimeout: number,
   ): Promise<number> {
     if (!this.page) {
-      throw new Error("Page is not initialized");
+      throw new Error("PAGE_INITIALIZE_ERROR: เกิด Error ตอนสร้าง Page");
     }
 
-    const response = await this.page.goto(url, {
-      waitUntil,
-      timeout,
-    });
+    try {
+      const rootResponse = await this.page.goto(rootUrl, {
+        waitUntil: "networkidle",
+        timeout: rootTimeout,
+      });
 
-    const status = response?.status();
+      const rootStatus = rootResponse?.status();
 
-    if (status !== 200) {
-      throw new Error(`Expected status 200 but received ${status}`);
+      if (rootStatus !== 200) {
+        throw new Error(`Status: ${rootStatus}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      throw new Error(
+        `NORMAL_PAGE_LOAD_ERROR: Error ที่การโหลดหน้าเว็บปกติ ไม่ใช่ Performance ของหน้าที่ทดสอบ | URL: ${rootUrl} | ${message}`,
+      );
     }
 
-    const finishTimeMs = await this.page.evaluate(() => {
-      const resources = performance.getEntriesByType(
-        "resource",
-      ) as PerformanceResourceTiming[];
+    await this.page.waitForTimeout(3000);
 
-      const navigations = performance.getEntriesByType(
-        "navigation",
-      ) as PerformanceNavigationTiming[];
+    try {
+      const response = await this.page.goto(targetUrl, {
+        waitUntil,
+        timeout: targetTimeout,
+      });
 
-      const resourceEndTimes = resources.map((r) => r.responseEnd || 0);
-      const navEnd = navigations[0]?.responseEnd || 0;
+      const status = response?.status();
 
-      return Math.max(navEnd, ...resourceEndTimes);
-    });
+      if (status !== 200) {
+        throw new Error(`Status: ${status}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
 
-    return finishTimeMs / 1000;
+      throw new Error(
+        `PERFORMANCE_PAGE_LOAD_ERROR: Error ที่หน้าทดสอบ Performance | URL: ${targetUrl} | ${message}`,
+      );
+    }
+
+    try {
+      const finishTimeMs = await this.page.evaluate(() => {
+        const resources = performance.getEntriesByType(
+          "resource",
+        ) as PerformanceResourceTiming[];
+
+        const navigations = performance.getEntriesByType(
+          "navigation",
+        ) as PerformanceNavigationTiming[];
+
+        const resourceEndTimes = resources.map((r) => r.responseEnd || 0);
+        const navEnd = navigations[0]?.responseEnd || 0;
+
+        return Math.max(navEnd, ...resourceEndTimes);
+      });
+
+      return finishTimeMs / 1000;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      throw new Error(
+        `PERFORMANCE_MEASURE_ERROR: Error ตอนวัดเวลา Performance | ${message}`,
+      );
+    }
   }
 
   async close(): Promise<void> {

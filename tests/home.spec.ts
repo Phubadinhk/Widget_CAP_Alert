@@ -6,16 +6,19 @@ test("Performance Main Page", async () => {
   test.setTimeout(HOME_PERFORMANCE_DATA.TEST_TIMEOUT);
 
   const finishTimes: number[] = [];
+  const errorLogs: string[] = [];
 
-  const token = process.env.KIOSK_TOKEN;
+  const token = process.env.KIOSK_TOKEN?.trim();
 
   if (!token) {
     throw new Error("Missing KIOSK_TOKEN in .env");
   }
 
-  const fullUrl = `${HOME_PERFORMANCE_DATA.BASE_URL}${HOME_PERFORMANCE_DATA.PATH}/${token}`;
+  const fullUrl =
+    `${HOME_PERFORMANCE_DATA.BASE_URL}` +
+    `${HOME_PERFORMANCE_DATA.PATH}/${token}`;
 
-  console.log(`Performance Result Main Page`);
+  console.log("Performance Result Main Page");
 
   for (let i = 1; i <= HOME_PERFORMANCE_DATA.TOTAL_RUNS; i++) {
     const homePage = new HomePerformancePage();
@@ -33,7 +36,32 @@ test("Performance Main Page", async () => {
 
       console.log(`Run ที่ ${i}: ${finishTimeSec.toFixed(2)} s`);
     } catch (error) {
-      console.error(`Run ที่ ${i}: โหลดไม่สำเร็จ`, error);
+      const message = error instanceof Error ? error.message : String(error);
+
+      let errorType = "UNKNOWN_ERROR";
+
+      if (
+        message.includes("net::ERR_NAME_NOT_RESOLVED") ||
+        message.includes("net::ERR_INVALID_URL") ||
+        message.includes("Invalid URL") ||
+        message.includes("WEB_URL_ERROR")
+      ) {
+        errorType = "ลิงก์เว็บผิด หรือ Domain ไม่ถูกต้อง";
+      } else if (message.includes("Test timeout")) {
+        errorType = "เวลารวมของ Test หมด (TEST_TIMEOUT)";
+      } else if (message.includes("NORMAL_PAGE_LOAD_ERROR")) {
+        errorType = "โหลดหน้าที่ใช้วัด Performance ไม่สำเร็จ";
+      } else if (message.includes("PERFORMANCE_MEASURE_ERROR")) {
+        errorType = "วัดเวลา Performance ไม่สำเร็จ";
+      } else if (message.includes("PAGE_INITIALIZE_ERROR")) {
+        errorType = "สร้าง Page ไม่สำเร็จ";
+      }
+
+      console.error(`Run ที่ ${i}: โหลดไม่สำเร็จ`);
+      console.error(`Error Type: ${errorType}`);
+      console.error(`Error Detail: ${message}`);
+
+      errorLogs.push(`Run ${i}: ${errorType} | ${message}`);
     } finally {
       await homePage.close();
     }
@@ -63,18 +91,32 @@ test("Performance Main Page", async () => {
     sortedTimes.length > 0 ? sortedTimes[sortedTimes.length - 1] : 0;
 
   console.log("----------------------------");
-
   console.log(
     `Success Runs: ${finishTimes.length}/${HOME_PERFORMANCE_DATA.TOTAL_RUNS}`,
   );
-
+  console.log(
+    `Failed Runs: ${errorLogs.length}/${HOME_PERFORMANCE_DATA.TOTAL_RUNS}`,
+  );
   console.log(`Total Time: ${totalTime.toFixed(2)} s`);
-
   console.log(`Average Time: ${averageTime.toFixed(2)} s`);
-
   console.log(`Median Time: ${medianTime.toFixed(2)} s`);
-
   console.log(`Min Time: ${minTime.toFixed(2)} s`);
-
   console.log(`Max Time: ${maxTime.toFixed(2)} s`);
+
+  console.log("----------------------------");
+  console.log("Error Summary");
+
+  if (errorLogs.length === 0) {
+    console.log("No Errors");
+  } else {
+    errorLogs.forEach((log) => {
+      console.log(log);
+    });
+  }
+
+  if (errorLogs.length > 0) {
+    throw new Error(
+      `Performance test failed: ${errorLogs.length}/${HOME_PERFORMANCE_DATA.TOTAL_RUNS} runs failed. Please check Error Summary above.`,
+    );
+  }
 });

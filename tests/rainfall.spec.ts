@@ -1,26 +1,27 @@
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 dotenv.config();
 
-import { test } from '@playwright/test';
-import { RAINFALL_PERFORMANCE_DATA } from '../test-data/rainfall.data';
-import { RainfallPerformancePage } from '../page-object/rainfall';
+import { test } from "@playwright/test";
+import { RAINFALL_PERFORMANCE_DATA } from "../test-data/rainfall.data";
+import { RainfallPerformancePage } from "../page-object/rainfall";
 
-test('Performance cumulativeRainfall Page', async () => {
+test("Performance cumulativeRainfall Page", async () => {
   test.setTimeout(RAINFALL_PERFORMANCE_DATA.TEST_TIMEOUT);
 
   const finishTimes: number[] = [];
+  const errorLogs: string[] = [];
 
   const token = process.env.KIOSK_TOKEN?.trim();
 
   if (!token) {
-    throw new Error('Missing KIOSK_TOKEN in .env');
+    throw new Error("Missing KIOSK_TOKEN in .env");
   }
 
   const fullUrl =
     `${RAINFALL_PERFORMANCE_DATA.BASE_URL}` +
     `${RAINFALL_PERFORMANCE_DATA.PATH}/${token}`;
 
-  console.log(`Performance Result CumulativeRainfall Page`); 
+  console.log("Performance Result CumulativeRainfall Page");
 
   for (let i = 1; i <= RAINFALL_PERFORMANCE_DATA.TOTAL_RUNS; i++) {
     const rainfallPage = new RainfallPerformancePage();
@@ -33,55 +34,97 @@ test('Performance cumulativeRainfall Page', async () => {
           RAINFALL_PERFORMANCE_DATA.ROOT_URL,
           fullUrl,
           RAINFALL_PERFORMANCE_DATA.WAIT_UNTIL,
-          RAINFALL_PERFORMANCE_DATA.NAVIGATION_TIMEOUT
+          RAINFALL_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,
+          RAINFALL_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
         );
 
       finishTimes.push(finishTimeSec);
 
       console.log(`Run ที่ ${i}: ${finishTimeSec.toFixed(2)} s`);
     } catch (error) {
-      console.error(`Run ที่ ${i}: โหลดไม่สำเร็จ`, error);
+      const message = error instanceof Error ? error.message : String(error);
+
+      let errorType = "UNKNOWN_ERROR";
+
+      if (
+        message.includes("net::ERR_NAME_NOT_RESOLVED") ||
+        message.includes("net::ERR_INVALID_URL") ||
+        message.includes("Invalid URL") ||
+        message.includes("WEB_URL_ERROR")
+      ) {
+        errorType = "ลิงก์เว็บผิด หรือ Domain ไม่ถูกต้อง";
+      } else if (message.includes("Test timeout")) {
+        errorType = "เวลารวมของ Test หมด (TEST_TIMEOUT)";
+      } else if (message.includes("NORMAL_PAGE_LOAD_ERROR")) {
+        errorType = "โหลดหน้าเว็บปกติไม่สำเร็จ ไม่ใช่ Performance";
+      } else if (message.includes("PERFORMANCE_PAGE_LOAD_ERROR")) {
+        errorType = "โหลดหน้าที่ใช้วัด Performance ไม่สำเร็จ";
+      } else if (message.includes("PERFORMANCE_MEASURE_ERROR")) {
+        errorType = "วัดเวลา Performance ไม่สำเร็จ";
+      } else if (message.includes("PAGE_INITIALIZE_ERROR")) {
+        errorType = "สร้าง Page ไม่สำเร็จ";
+      }
+
+      console.error(`Run ที่ ${i}: โหลดไม่สำเร็จ`);
+      console.error(`Error Type: ${errorType}`);
+      console.error(`Error Detail: ${message}`);
+
+      errorLogs.push(`Run ${i}: ${errorType} | ${message}`);
     } finally {
       await rainfallPage.close();
     }
   }
 
   const totalTime = finishTimes.reduce((sum, time) => sum + time, 0);
-  
-    const averageTime =
-      finishTimes.length > 0 ? totalTime / finishTimes.length : 0;
-  
-    const sortedTimes = [...finishTimes].sort((a, b) => a - b);
-  
-    let medianTime = 0;
-  
-    if (sortedTimes.length > 0) {
-      const middleIndex = Math.floor(sortedTimes.length / 2);
-  
-      medianTime =
-        sortedTimes.length % 2 === 0
-          ? (sortedTimes[middleIndex - 1] + sortedTimes[middleIndex]) / 2
-          : sortedTimes[middleIndex];
-    }
-  
-    const minTime = sortedTimes.length > 0 ? sortedTimes[0] : 0;
-  
-    const maxTime =
-      sortedTimes.length > 0 ? sortedTimes[sortedTimes.length - 1] : 0;
-  
-    console.log("----------------------------");
-  
-    console.log(
-      `Success Runs: ${finishTimes.length}/${RAINFALL_PERFORMANCE_DATA.TOTAL_RUNS}`,
+
+  const averageTime =
+    finishTimes.length > 0 ? totalTime / finishTimes.length : 0;
+
+  const sortedTimes = [...finishTimes].sort((a, b) => a - b);
+
+  let medianTime = 0;
+
+  if (sortedTimes.length > 0) {
+    const middleIndex = Math.floor(sortedTimes.length / 2);
+
+    medianTime =
+      sortedTimes.length % 2 === 0
+        ? (sortedTimes[middleIndex - 1] + sortedTimes[middleIndex]) / 2
+        : sortedTimes[middleIndex];
+  }
+
+  const minTime = sortedTimes.length > 0 ? sortedTimes[0] : 0;
+
+  const maxTime =
+    sortedTimes.length > 0 ? sortedTimes[sortedTimes.length - 1] : 0;
+
+  console.log("----------------------------");
+  console.log(
+    `Success Runs: ${finishTimes.length}/${RAINFALL_PERFORMANCE_DATA.TOTAL_RUNS}`,
+  );
+  console.log(
+    `Failed Runs: ${errorLogs.length}/${RAINFALL_PERFORMANCE_DATA.TOTAL_RUNS}`,
+  );
+  console.log(`Total Time: ${totalTime.toFixed(2)} s`);
+  console.log(`Average Time: ${averageTime.toFixed(2)} s`);
+  console.log(`Median Time: ${medianTime.toFixed(2)} s`);
+  console.log(`Min Time: ${minTime.toFixed(2)} s`);
+  console.log(`Max Time: ${maxTime.toFixed(2)} s`);
+
+  console.log("----------------------------");
+  console.log("Error Summary");
+
+  if (errorLogs.length === 0) {
+    console.log("No Errors");
+  } else {
+    errorLogs.forEach((log) => {
+      console.log(log);
+    });
+  }
+
+  if (errorLogs.length > 0) {
+    throw new Error(
+      `Performance test failed: ${errorLogs.length}/${RAINFALL_PERFORMANCE_DATA.TOTAL_RUNS} runs failed. Please check Error Summary above.`,
     );
-  
-    console.log(`Total Time: ${totalTime.toFixed(2)} s`);
-  
-    console.log(`Average Time: ${averageTime.toFixed(2)} s`);
-  
-    console.log(`Median Time: ${medianTime.toFixed(2)} s`);
-  
-    console.log(`Min Time: ${minTime.toFixed(2)} s`);
-  
-    console.log(`Max Time: ${maxTime.toFixed(2)} s`);
+  }
 });
