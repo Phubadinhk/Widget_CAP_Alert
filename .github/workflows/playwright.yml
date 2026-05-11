@@ -61,6 +61,54 @@ jobs:
             rm -rf blob-report
 
             set +e
+            npx playwright test "tests/${TEST_NAME}.spec.ts" --reporter=list,blob 2>&1 | tee "reports/${TEST_NAME}-report.txt"
+            TEST_EXIT_CODE=${PIPESTATUS[0]}
+            set -e
+
+            echo "$TEST_EXIT_CODE" > "reports/${TEST_NAME}-status.txt"
+
+            if [ -d "blob-report" ]; then
+              mv blob-report/*.zip "blob-reports/${TEST_NAME}.zip"
+            fi
+
+            if [ "$TEST_EXIT_CODE" -ne 0 ]; then
+              OVERALL_EXIT_CODE=1
+            fi
+          done
+
+          echo "===== Merge Playwright HTML Report ====="
+          rm -rf playwright-report
+
+          if [ "$(ls -A blob-reports 2>/dev/null)" ]; then
+            npx playwright merge-reports --reporter=html blob-reports
+          else
+            echo "No blob reports found"
+          fi
+
+          exit $OVERALL_EXIT_CODE
+        shell: bash
+        run: |
+          mkdir -p reports
+          mkdir -p blob-reports
+
+          TEST_FILES=(
+            "home"
+            "alert_history"
+            "danger"
+            "five-day"
+            "rainfall"
+            "temperature"
+            "weather_province"
+          )
+
+          OVERALL_EXIT_CODE=0
+
+          for TEST_NAME in "${TEST_FILES[@]}"; do
+            echo "===== Running tests/${TEST_NAME}.spec.ts ====="
+
+            rm -rf blob-report
+
+            set +e
             npx playwright test "tests/${TEST_NAME}.spec.ts" --reporter=line,blob | tee "reports/${TEST_NAME}-report.txt"
             TEST_EXIT_CODE=${PIPESTATUS[0]}
             set -e
@@ -86,6 +134,22 @@ jobs:
           fi
 
           exit $OVERALL_EXIT_CODE
+        
+      - name: Capture Playwright report screenshot
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p report-screenshots
+
+          if [ -f "playwright-report/index.html" ]; then
+            npx playwright screenshot \
+              --full-page \
+              "file://$PWD/playwright-report/index.html" \
+              "report-screenshots/playwright-report.png"
+          else
+            echo "playwright-report/index.html not found"
+          fi
+
 
       - name: Create Excel performance report
         if: always()
@@ -296,6 +360,7 @@ jobs:
             playwright-report/
             reports/
             blob-reports/
+            report-screenshots/
           retention-days: 7
 
       - name: Send summary to Microsoft Teams
