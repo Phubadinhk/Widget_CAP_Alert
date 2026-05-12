@@ -38,6 +38,10 @@ test("Performance DangerSituation Page", async () => {
           DANGER_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
         );
 
+      await dangerPage.captureScreenshot(
+        `reports/screenshots/Danger/run-${i}.png`,
+      );
+
       finishTimes.push(finishTimeSec);
 
       console.log(`Run ที่ ${i}: ${finishTimeSec.toFixed(2)} s`);

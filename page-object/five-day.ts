@@ -95,6 +95,19 @@ export class FiveDayPerformancePage {
     }
   }
 
+  async captureScreenshot(path: string): Promise<void> {
+    if (!this.page) {
+      throw new Error(
+        "PAGE_INITIALIZE_ERROR: ไม่สามารถ Capture Screenshot ได้ เพราะ Page ยังไม่ถูกสร้าง",
+      );
+    }
+
+    await this.page.screenshot({
+      path,
+      fullPage: true,
+    });
+  }
+
   async close(): Promise<void> {
     await this.context?.close();
     await this.browser?.close();

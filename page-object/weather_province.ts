@@ -26,9 +26,7 @@ export class WeatherPerformancePage {
     targetTimeout: number,
   ): Promise<number> {
     if (!this.page) {
-      throw new Error(
-        "PAGE_INITIALIZE_ERROR: เกิด Error ตอนสร้าง Page",
-      );
+      throw new Error("PAGE_INITIALIZE_ERROR: เกิด Error ตอนสร้าง Page");
     }
 
     // =========================
@@ -47,9 +45,7 @@ export class WeatherPerformancePage {
         throw new Error(`Status: ${rootStatus}`);
       }
     } catch (error) {
-      const message = error instanceof Error
-        ? error.message
-        : String(error);
+      const message = error instanceof Error ? error.message : String(error);
 
       throw new Error(
         `NORMAL_PAGE_LOAD_ERROR: Error ที่การโหลดหน้าเว็บปกติ ไม่ใช่ Performance ของหน้าที่ทดสอบ | URL: ${rootUrl} | ${message}`,
@@ -74,9 +70,7 @@ export class WeatherPerformancePage {
         throw new Error(`Status: ${status}`);
       }
     } catch (error) {
-      const message = error instanceof Error
-        ? error.message
-        : String(error);
+      const message = error instanceof Error ? error.message : String(error);
 
       throw new Error(
         `PERFORMANCE_PAGE_LOAD_ERROR: Error ที่หน้าทดสอบ Performance | URL: ${targetUrl} | ${message}`,
@@ -97,9 +91,7 @@ export class WeatherPerformancePage {
           "navigation",
         ) as PerformanceNavigationTiming[];
 
-        const resourceEndTimes = resources.map(
-          (r) => r.responseEnd || 0,
-        );
+        const resourceEndTimes = resources.map((r) => r.responseEnd || 0);
 
         const navEnd = navigations[0]?.responseEnd || 0;
 
@@ -108,14 +100,25 @@ export class WeatherPerformancePage {
 
       return finishTimeMs / 1000;
     } catch (error) {
-      const message = error instanceof Error
-        ? error.message
-        : String(error);
+      const message = error instanceof Error ? error.message : String(error);
 
       throw new Error(
         `PERFORMANCE_MEASURE_ERROR: Error ตอนวัดเวลา Performance | ${message}`,
       );
     }
+  }
+
+  async captureScreenshot(path: string): Promise<void> {
+    if (!this.page) {
+      throw new Error(
+        "PAGE_INITIALIZE_ERROR: ไม่สามารถ Capture Screenshot ได้ เพราะ Page ยังไม่ถูกสร้าง",
+      );
+    }
+
+    await this.page.screenshot({
+      path,
+      fullPage: true,
+    });
   }
 
   async close(): Promise<void> {

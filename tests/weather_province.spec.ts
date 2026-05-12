@@ -40,6 +40,10 @@ test("Performance WeatherByProvincePage", async () => {
 
       finishTimes.push(finishTimeSec);
 
+      await weatherPage.captureScreenshot(
+        `reports/screenshots/WeatherByProvince/run-${i}.png`,
+      );
+
       console.log(`Run ที่ ${i}: ${finishTimeSec.toFixed(2)} s`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

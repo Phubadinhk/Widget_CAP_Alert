@@ -32,6 +32,10 @@ test("Performance Main Page", async () => {
         HOME_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
       );
 
+      await homePage.captureScreenshot(
+        `reports/screenshots/MainPage/run-${i}.png`,
+      );
+      
       finishTimes.push(finishTimeSec);
 
       console.log(`Run ที่ ${i}: ${finishTimeSec.toFixed(2)} s`);

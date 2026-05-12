@@ -39,6 +39,10 @@ test("Performance DisasterAlertHistory Page", async () => {
           ALERT_HISTORY_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
         );
 
+      await alertHistoryPage.captureScreenshot(
+        `reports/screenshots/AlertHistory/run-${i}.png`,
+      );
+
       finishTimes.push(finishTimeSec);
 
       console.log(`Run ที่ ${i}: ${finishTimeSec.toFixed(2)} s`);
