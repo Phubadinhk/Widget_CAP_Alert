@@ -157,27 +157,29 @@ jobs:
           bold_font = Font(bold=True)
 
           def parse_success_line(text):
-              patterns = [
-                  (r"Run ที่ (\d+): ([\d.]+) s", "run"),
-                  (r"Run (\d+) \| Province ([^:]+): ([\d.]+) s", "target"),
-                  (r"Run (\d+) \| Geocode ([^:]+): ([\d.]+) s", "target"),
-                  (r"Run (\d+) \| Instance ([^:]+): ([\d.]+) s", "target"),
-                  (r"Run (\d+) \| .*?Instance ([^:]+): ([\d.]+) s", "target"),
-                  (r"Instance ([^:]+): ([\d.]+) s", "instance"),
-              ]
+            patterns = [
+                (r"Run ที่ (\d+): ([\d.]+) s", "run"),
+                (r"Run (\d+) \| Province ([^:]+): ([\d.]+) s", "target"),
+                (r"Run (\d+) \| Geocode ([^:]+): ([\d.]+) s", "target"),
+                (r"Run (\d+) \| Instance ([^:]+): ([\d.]+) s", "target"),
+                (r"Run (\d+) \| .*?Instance ([^:]+): ([\d.]+) s", "target"),
+                (r"Instance (\d+): ([\d.]+) s", "instance"),
+            ]
 
-              for pattern, kind in patterns:
-                  match = re.match(pattern, text)
-                  if match:
-                      if kind == "run":
-                          return match.group(1), "", match.group(2)
-                      if kind == "target":
-                          return match.group(1), match.group(2), match.group(3)
-                      if kind == "instance":
-                          return "", f"Instance {match.group(1)}", match.group(2)
+            for pattern, kind in patterns:
+                match = re.match(pattern, text)
 
-              return None
+                if match:
+                    if kind == "run":
+                        return match.group(1), "", match.group(2)
 
+                    if kind == "target":
+                        return match.group(1), match.group(2), match.group(3)
+
+                    if kind == "instance":
+                        return "1", f"Instance {match.group(1)}", match.group(2)
+
+            return None
           def parse_failed_line(text):
               patterns = [
                   r"Run ที่ (\d+): โหลดไม่สำเร็จ",
