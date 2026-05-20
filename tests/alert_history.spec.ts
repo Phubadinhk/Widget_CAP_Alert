@@ -25,7 +25,7 @@ type PerformanceResult =
   | PerformanceSuccessResult
   | PerformanceFailResult;
 
-test("Performance DisasterAlertHistory Page", async () => {
+test("Performance DisasterAlertHistory Page - sequential", async () => {
   test.setTimeout(ALERT_HISTORY_PERFORMANCE_DATA.TEST_TIMEOUT);
 
   const finishTimes: number[] = [];
@@ -39,7 +39,7 @@ test("Performance DisasterAlertHistory Page", async () => {
 
   console.log("Performance Result DisasterAlertHistory Page");
   console.log(
-    `1 Run = 1 Browser | เปิดพร้อมกัน ${ALERT_HISTORY_PERFORMANCE_DATA.GEOCODE.length} Contexts`,
+    `1 Run = 1 Browser | เปิดทีละหน้า จำนวน ${ALERT_HISTORY_PERFORMANCE_DATA.GEOCODE.length} Pages`,
   );
 
   for (let run = 1; run <= ALERT_HISTORY_PERFORMANCE_DATA.TOTAL_RUNS; run++) {
@@ -50,50 +50,54 @@ test("Performance DisasterAlertHistory Page", async () => {
     try {
       await alertHistoryPage.openBrowser();
 
-      const tasks: Promise<PerformanceResult>[] =
-        ALERT_HISTORY_PERFORMANCE_DATA.GEOCODE.map(async (geocode, index) => {
-          const instance = index + 1;
+      const results: PerformanceResult[] = [];
 
-          try {
-            const path =
-              ALERT_HISTORY_PERFORMANCE_DATA.PATH_TEMPLATE.replace(
-                "{geocode}",
-                geocode,
-              );
+      for (
+        let index = 0;
+        index < ALERT_HISTORY_PERFORMANCE_DATA.GEOCODE.length;
+        index++
+      ) {
+        const geocode = ALERT_HISTORY_PERFORMANCE_DATA.GEOCODE[index];
+        const instance = index + 1;
 
-            const fullUrl =
-              `${ALERT_HISTORY_PERFORMANCE_DATA.BASE_URL}` +
-              `${path}/${token}`;
-
-            const finishTimeSec =
-              await alertHistoryPage.gotoRootThenTargetAndGetNetworkFinishTimeByNewContext(
-                ALERT_HISTORY_PERFORMANCE_DATA.ROOT_URL,
-                fullUrl,
-                ALERT_HISTORY_PERFORMANCE_DATA.WAIT_UNTIL,
-                ALERT_HISTORY_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,
-                ALERT_HISTORY_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
-                `reports/screenshots/AlertHistory/run-${run}-geocode-${geocode}.png`,
-              );
-
-            return {
-              success: true as const,
-              run,
-              instance,
+        try {
+          const path =
+            ALERT_HISTORY_PERFORMANCE_DATA.PATH_TEMPLATE.replace(
+              "{geocode}",
               geocode,
-              finishTimeSec,
-            };
-          } catch (error) {
-            return {
-              success: false as const,
-              run,
-              instance,
-              geocode,
-              message: error instanceof Error ? error.message : String(error),
-            };
-          }
-        });
+            );
 
-      const results = await Promise.all(tasks);
+          const fullUrl =
+            `${ALERT_HISTORY_PERFORMANCE_DATA.BASE_URL}` +
+            `${path}/${token}`;
+
+          const finishTimeSec =
+            await alertHistoryPage.gotoRootThenTargetAndGetNetworkFinishTimeByNewContext(
+              ALERT_HISTORY_PERFORMANCE_DATA.ROOT_URL,
+              fullUrl,
+              ALERT_HISTORY_PERFORMANCE_DATA.WAIT_UNTIL,
+              ALERT_HISTORY_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,
+              ALERT_HISTORY_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
+              `reports/screenshots/AlertHistory/run-${run}-geocode-${geocode}.png`,
+            );
+
+          results.push({
+            success: true,
+            run,
+            instance,
+            geocode,
+            finishTimeSec,
+          });
+        } catch (error) {
+          results.push({
+            success: false,
+            run,
+            instance,
+            geocode,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
 
       results.forEach((result) => {
         if (result.success) {
@@ -134,7 +138,7 @@ test("Performance DisasterAlertHistory Page", async () => {
         }
       });
     } finally {
-      await alertHistoryPage.close();
+
     }
   }
 

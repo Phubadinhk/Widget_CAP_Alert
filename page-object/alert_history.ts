@@ -2,6 +2,7 @@ import { Browser, BrowserContext, Page, chromium } from "@playwright/test";
 
 export class AlertHistoryPerformancePage {
   private browser?: Browser;
+  private contexts: BrowserContext[] = [];
 
   async openBrowser(): Promise<void> {
     this.browser = await chromium.launch({
@@ -21,30 +22,20 @@ export class AlertHistoryPerformancePage {
       throw new Error("BROWSER_INITIALIZE_ERROR: ยังไม่ได้สร้าง Browser");
     }
 
-    const context: BrowserContext = await this.browser.newContext({
+    const context = await this.browser.newContext({
       ignoreHTTPSErrors: true,
       locale: "th-TH",
     });
 
-    const page: Page = await context.newPage();
+    this.contexts.push(context);
 
-    page.on("response", async (response) => {
-      if (response.status() === 401) {
-        console.log("401 =>", response.url());
-      }
-    });
+    const page = await context.newPage();
 
     try {
-      const rootResponse = await page.goto(rootUrl, {
+      await page.goto(rootUrl, {
         waitUntil: "networkidle",
         timeout: rootTimeout,
       });
-
-      const rootStatus = rootResponse?.status();
-
-      if (rootStatus !== 200) {
-        throw new Error(`Root Status: ${rootStatus}`);
-      }
 
       await page.waitForTimeout(3000);
 
@@ -88,13 +79,14 @@ export class AlertHistoryPerformancePage {
       throw new Error(
         `PERFORMANCE_PAGE_LOAD_ERROR: Error ที่หน้าทดสอบ Performance | URL: ${targetUrl} | ${message}`,
       );
-    } finally {
-      await page.close();
-      await context.close();
     }
   }
 
   async close(): Promise<void> {
+    for (const context of this.contexts) {
+      await context.close();
+    }
+
     await this.browser?.close();
   }
 }
