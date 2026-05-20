@@ -2,7 +2,7 @@ name: Performance Test
 
 on:
   schedule:
-    - cron: "11 23 * * *" # 06:11 ไทย
+    - cron: "11 0 * * *" # 07:11 ไทย
     - cron: "32 8 * * *" # 15:32 ไทย
   workflow_dispatch:
 
@@ -68,7 +68,7 @@ jobs:
             echo "$TEST_EXIT_CODE" > "reports/${TEST_NAME}-status.txt"
 
             if [ -d "blob-report" ]; then
-              mv blob-report/*.zip "blob-reports/${TEST_NAME}.zip"
+              mv blob-report/*.zip "blob-reports/${TEST_NAME}.zip" || true
             fi
 
             if [ "$TEST_EXIT_CODE" -ne 0 ]; then
@@ -112,10 +112,8 @@ jobs:
           python - <<'PY'
           import os
           import re
-
           from datetime import datetime
           from zoneinfo import ZoneInfo
-
           from openpyxl import Workbook
           from openpyxl.styles import PatternFill, Font, Alignment
           from openpyxl.utils import get_column_letter
@@ -140,11 +138,12 @@ jobs:
               "RunDate",
               "ScheduleTime",
               "RunNo",
+              "Target",
               "LoadTimeSec",
               "ErrorType",
               "ErrorDetail",
-              "SuccessRuns",
-              "FailedRuns",
+              "Success",
+              "Failed",
               "TotalTimeSec",
               "AverageTimeSec",
               "MedianTimeSec",
@@ -152,29 +151,54 @@ jobs:
               "MaxTimeSec",
           ]
 
-          header_fill = PatternFill(
-              start_color="D9EAF7",
-              end_color="D9EAF7",
-              fill_type="solid"
-          )
-
-          summary_fill = PatternFill(
-              start_color="FFF2CC",
-              end_color="FFF2CC",
-              fill_type="solid"
-          )
-
-          fail_fill = PatternFill(
-              start_color="F4CCCC",
-              end_color="F4CCCC",
-              fill_type="solid"
-          )
-
+          header_fill = PatternFill(start_color="D9EAF7", end_color="D9EAF7", fill_type="solid")
+          summary_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+          fail_fill = PatternFill(start_color="F4CCCC", end_color="F4CCCC", fill_type="solid")
           bold_font = Font(bold=True)
+
+          def parse_success_line(text):
+              patterns = [
+                  (r"Run ที่ (\d+): ([\d.]+) s", "run"),
+                  (r"Run (\d+) \| Province ([^:]+): ([\d.]+) s", "target"),
+                  (r"Run (\d+) \| Geocode ([^:]+): ([\d.]+) s", "target"),
+                  (r"Run (\d+) \| Instance ([^:]+): ([\d.]+) s", "target"),
+                  (r"Run (\d+) \| .*?Instance ([^:]+): ([\d.]+) s", "target"),
+                  (r"Instance ([^:]+): ([\d.]+) s", "instance"),
+              ]
+
+              for pattern, kind in patterns:
+                  match = re.match(pattern, text)
+                  if match:
+                      if kind == "run":
+                          return match.group(1), "", match.group(2)
+                      if kind == "target":
+                          return match.group(1), match.group(2), match.group(3)
+                      if kind == "instance":
+                          return "", f"Instance {match.group(1)}", match.group(2)
+
+              return None
+
+          def parse_failed_line(text):
+              patterns = [
+                  r"Run ที่ (\d+): โหลดไม่สำเร็จ",
+                  r"Run (\d+) \| Province ([^:]+): โหลดไม่สำเร็จ",
+                  r"Run (\d+) \| Geocode ([^:]+): โหลดไม่สำเร็จ",
+                  r"Run (\d+) \| Instance ([^:]+): โหลดไม่สำเร็จ",
+                  r"Instance ([^:]+): โหลดไม่สำเร็จ",
+              ]
+
+              for pattern in patterns:
+                  match = re.match(pattern, text)
+                  if match:
+                      groups = match.groups()
+                      if len(groups) == 1:
+                          return groups[0], ""
+                      return groups[0], groups[1]
+
+              return None
 
           for test_name, sheet_name in files:
               ws = wb.create_sheet(title=sheet_name)
-
               ws.append(headers)
 
               for cell in ws[1]:
@@ -187,8 +211,8 @@ jobs:
               rows = []
               error_map = {}
 
-              success_runs = ""
-              failed_runs = ""
+              success_count = ""
+              failed_count = ""
               total_time = ""
               average_time = ""
               median_time = ""
@@ -204,82 +228,76 @@ jobs:
               for line in lines:
                   text = line.strip()
 
-                  success_match = re.match(
-                      r"Run ที่ (\d+): ([\d.]+) s",
-                      text
-                  )
+                  success_result = parse_success_line(text)
+                  failed_result = parse_failed_line(text)
 
-                  fail_match = re.match(
-                      r"Run ที่ (\d+): โหลดไม่สำเร็จ",
-                      text
-                  )
-
-                  error_summary_match = re.match(
-                      r"Run (\d+): (.*?) \| (.*)",
-                      text
-                  )
-
-                  if success_match:
+                  if success_result:
+                      run_no, target, load_time = success_result
                       rows.append({
-                          "run_no": success_match.group(1),
-                          "load_time": success_match.group(2),
+                          "run_no": run_no,
+                          "target": target,
+                          "load_time": load_time,
                           "error_type": "",
                           "error_detail": "",
                       })
 
-                  elif fail_match:
+                  elif failed_result:
+                      run_no, target = failed_result
                       rows.append({
-                          "run_no": fail_match.group(1),
+                          "run_no": run_no,
+                          "target": target,
                           "load_time": "FAILED",
                           "error_type": "",
                           "error_detail": "",
                       })
 
-                  elif error_summary_match:
-                      run_no = error_summary_match.group(1)
+                  error_summary_match = re.match(
+                      r"(Run \d+.*?|Instance \d+): (.*?) \| (.*)",
+                      text
+                  )
 
-                      error_map[run_no] = {
+                  if error_summary_match:
+                      key = error_summary_match.group(1)
+                      error_map[key] = {
                           "error_type": error_summary_match.group(2),
                           "error_detail": error_summary_match.group(3),
                       }
 
-                  if text.startswith("Success Runs"):
-                      success_runs = text.split(":", 1)[1].strip()
+                  if (
+                      text.startswith("Success Runs")
+                      or text.startswith("Success Pages")
+                      or text.startswith("Success Contexts")
+                  ):
+                      success_count = text.split(":", 1)[1].strip()
 
-                  if text.startswith("Failed Runs"):
-                      failed_runs = text.split(":", 1)[1].strip()
+                  if (
+                      text.startswith("Failed Runs")
+                      or text.startswith("Failed Pages")
+                      or text.startswith("Failed Contexts")
+                  ):
+                      failed_count = text.split(":", 1)[1].strip()
 
                   if text.startswith("Total Time"):
-                      total_time = text.split(":", 1)[1] \
-                          .replace("s", "").strip()
+                      total_time = text.split(":", 1)[1].replace("s", "").strip()
 
                   if text.startswith("Average Time"):
-                      average_time = text.split(":", 1)[1] \
-                          .replace("s", "").strip()
+                      average_time = text.split(":", 1)[1].replace("s", "").strip()
 
                   if text.startswith("Median Time"):
-                      median_time = text.split(":", 1)[1] \
-                          .replace("s", "").strip()
+                      median_time = text.split(":", 1)[1].replace("s", "").strip()
 
                   if text.startswith("Min Time"):
-                      min_time = text.split(":", 1)[1] \
-                          .replace("s", "").strip()
+                      min_time = text.split(":", 1)[1].replace("s", "").strip()
 
                   if text.startswith("Max Time"):
-                      max_time = text.split(":", 1)[1] \
-                          .replace("s", "").strip()
+                      max_time = text.split(":", 1)[1].replace("s", "").strip()
 
               for row in rows:
-                  run_no = row["run_no"]
-
-                  if run_no in error_map:
-                      row["error_type"] = error_map[run_no]["error_type"]
-                      row["error_detail"] = error_map[run_no]["error_detail"]
-
                   ws.append([
                       run_date,
                       current_time,
-                      run_no,
+                      row["run_no"],
+                      row["target"],
                       row["load_time"],
                       row["error_type"],
                       row["error_detail"],
@@ -303,8 +321,9 @@ jobs:
                   "",
                   "",
                   "",
-                  success_runs,
-                  failed_runs,
+                  "",
+                  success_count,
+                  failed_count,
                   total_time,
                   average_time,
                   median_time,
@@ -317,20 +336,15 @@ jobs:
                   cell.font = bold_font
 
               for col in range(1, len(headers) + 1):
-                  ws.column_dimensions[
-                      get_column_letter(col)
-                  ].width = 25
+                  ws.column_dimensions[get_column_letter(col)].width = 25
 
               ws.freeze_panes = "A2"
 
-          filename = datetime.now(
-              ZoneInfo("Asia/Bangkok")
-          ).strftime(
+          filename = datetime.now(ZoneInfo("Asia/Bangkok")).strftime(
               "performance-report-%Y-%m-%d-%H-%M.xlsx"
           )
 
           wb.save(filename)
-
           print(f"Created Excel file: {filename}")
           PY
 
@@ -353,7 +367,7 @@ jobs:
             blob-reports/
             report-screenshots/
           retention-days: 7
-          
+
       - name: Send summary to Microsoft Teams
         if: always()
         shell: bash
@@ -390,14 +404,13 @@ jobs:
           for test_name, display_name in files:
               report_path = f"reports/{test_name}-report.txt"
 
-              success_runs = "N/A"
-              failed_runs = "N/A"
+              success_count = "N/A"
+              failed_count = "N/A"
               total_time = "N/A"
               average_time = "N/A"
               median_time = "N/A"
               min_time = "N/A"
               max_time = "N/A"
-
               error_summary = []
 
               if os.path.exists(report_path):
@@ -407,59 +420,43 @@ jobs:
                   for line in lines:
                       text = line.strip()
 
-                      if text.startswith("Success Runs"):
-                          success_runs = text.replace(
-                              "Success Runs:",
-                              ""
-                          ).strip()
+                      if (
+                          text.startswith("Success Runs")
+                          or text.startswith("Success Pages")
+                          or text.startswith("Success Contexts")
+                      ):
+                          success_count = text.split(":", 1)[1].strip()
 
-                      if text.startswith("Failed Runs"):
-                          failed_runs = text.replace(
-                              "Failed Runs:",
-                              ""
-                          ).strip()
+                      if (
+                          text.startswith("Failed Runs")
+                          or text.startswith("Failed Pages")
+                          or text.startswith("Failed Contexts")
+                      ):
+                          failed_count = text.split(":", 1)[1].strip()
 
                       if text.startswith("Total Time"):
-                          total_time = text.replace(
-                              "Total Time:",
-                              ""
-                          ).strip()
+                          total_time = text.split(":", 1)[1].strip()
 
                       if text.startswith("Average Time"):
-                          average_time = text.replace(
-                              "Average Time:",
-                              ""
-                          ).strip()
+                          average_time = text.split(":", 1)[1].strip()
 
                       if text.startswith("Median Time"):
-                          median_time = text.replace(
-                              "Median Time:",
-                              ""
-                          ).strip()
+                          median_time = text.split(":", 1)[1].strip()
 
                       if text.startswith("Min Time"):
-                          min_time = text.replace(
-                              "Min Time:",
-                              ""
-                          ).strip()
+                          min_time = text.split(":", 1)[1].strip()
 
                       if text.startswith("Max Time"):
-                          max_time = text.replace(
-                              "Max Time:",
-                              ""
-                          ).strip()
+                          max_time = text.split(":", 1)[1].strip()
 
                       error_match = re.match(
-                          r"Run (\d+): (.*?) \|",
+                          r"(Run \d+.*?|Instance \d+): (.*?) \|",
                           text
                       )
 
                       if error_match:
-                          run_no = error_match.group(1)
-                          error_type = error_match.group(2)
-
                           error_summary.append(
-                              f"Run {run_no}: {error_type}"
+                              f"{error_match.group(1)}: {error_match.group(2)}"
                           )
 
               error_text = "No Errors"
@@ -469,8 +466,8 @@ jobs:
 
               summary_text += (
                   f"{display_name}\n"
-                  f"Success Runs: {success_runs}\n"
-                  f"Failed Runs: {failed_runs}\n"
+                  f"Success: {success_count}\n"
+                  f"Failed: {failed_count}\n"
                   f"Total Time: {total_time}\n"
                   f"Average Time: {average_time}\n"
                   f"Median Time: {median_time}\n"
@@ -524,11 +521,7 @@ jobs:
               ]
           }
 
-          with open(
-              "teams-payload.json",
-              "w",
-              encoding="utf-8"
-          ) as f:
+          with open("teams-payload.json", "w", encoding="utf-8") as f:
               json.dump(payload, f, ensure_ascii=False)
 
           PY

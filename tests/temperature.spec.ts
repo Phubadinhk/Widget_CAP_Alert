@@ -5,7 +5,21 @@ import { test } from "@playwright/test";
 import { TEMPERATURE_PERFORMANCE_DATA } from "../test-data/temperature.data";
 import { TemperaturePerformancePage } from "../page-object/temperature";
 
-test("Performance wrf24hr Page", async () => {
+type PerformanceSuccessResult = {
+  success: true;
+  provinceId: number;
+  finishTimeSec: number;
+};
+
+type PerformanceFailResult = {
+  success: false;
+  provinceId: number;
+  message: string;
+};
+
+type PerformanceResult = PerformanceSuccessResult | PerformanceFailResult;
+
+test("Performance wrf24hr Page - Concurrent", async () => {
   test.setTimeout(TEMPERATURE_PERFORMANCE_DATA.TEST_TIMEOUT);
 
   const finishTimes: number[] = [];
@@ -17,67 +31,113 @@ test("Performance wrf24hr Page", async () => {
     throw new Error("Missing KIOSK_TOKEN in .env");
   }
 
-  const fullUrl =
-    `${TEMPERATURE_PERFORMANCE_DATA.BASE_URL}` +
-    `${TEMPERATURE_PERFORMANCE_DATA.PATH}/${token}`;
-
   console.log("Performance Result wrf24hr Page");
 
-  for (let i = 1; i <= TEMPERATURE_PERFORMANCE_DATA.TOTAL_RUNS; i++) {
+  console.log(
+    `1 Run = 1 Browser | เปิดพร้อมกัน ${TEMPERATURE_PERFORMANCE_DATA.PROVINCE_IDS.length} Contexts`,
+  );
+
+  for (let run = 1; run <= TEMPERATURE_PERFORMANCE_DATA.TOTAL_RUNS; run++) {
+    console.log(`================ Run ${run} ================`);
+
     const temperaturePage = new TemperaturePerformancePage();
 
     try {
-      await temperaturePage.openNewBrowser();
+      await temperaturePage.openBrowser();
 
-      const finishTimeSec =
-        await temperaturePage.gotoRootThenTargetAndGetNetworkFinishTime(
-          TEMPERATURE_PERFORMANCE_DATA.ROOT_URL,
-          fullUrl,
-          TEMPERATURE_PERFORMANCE_DATA.WAIT_UNTIL,
-          TEMPERATURE_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,
-          TEMPERATURE_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
+      const tasks: Promise<PerformanceResult>[] =
+        TEMPERATURE_PERFORMANCE_DATA.PROVINCE_IDS.map(
+          async (provinceId) => {
+            try {
+              const path =
+                TEMPERATURE_PERFORMANCE_DATA.PATH_TEMPLATE.replace(
+                  "{provinceId}",
+                  String(provinceId),
+                );
+
+              const fullUrl =
+                `${TEMPERATURE_PERFORMANCE_DATA.BASE_URL}` +
+                `${path}/${token}`;
+
+              const finishTimeSec =
+                await temperaturePage.gotoRootThenTargetAndGetNetworkFinishTimeByNewContext(
+                  TEMPERATURE_PERFORMANCE_DATA.ROOT_URL,
+                  fullUrl,
+                  TEMPERATURE_PERFORMANCE_DATA.WAIT_UNTIL,
+                  TEMPERATURE_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,
+                  TEMPERATURE_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
+                  `reports/screenshots/Temperature/run-${run}-province-${provinceId}.png`,
+                );
+
+              return {
+                success: true as const,
+                provinceId,
+                finishTimeSec,
+              };
+            } catch (error) {
+              const message =
+                error instanceof Error ? error.message : String(error);
+
+              return {
+                success: false as const,
+                provinceId,
+                message,
+              };
+            }
+          },
         );
 
-      finishTimes.push(finishTimeSec);
+      const results = await Promise.all(tasks);
 
-      await temperaturePage.captureScreenshot(
-        `reports/screenshots/Temperature/run-${i}.png`,
-      );
+      results.forEach((result) => {
+        if (result.success) {
+          finishTimes.push(result.finishTimeSec);
 
-      console.log(`Run ที่ ${i}: ${finishTimeSec.toFixed(2)} s`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+          console.log(
+            `Run ${run} | Province ${result.provinceId}: ${result.finishTimeSec.toFixed(2)} s`,
+          );
+        } else {
+          let errorType = "UNKNOWN_ERROR";
 
-      let errorType = "UNKNOWN_ERROR";
+          if (
+            result.message.includes("net::ERR_NAME_NOT_RESOLVED") ||
+            result.message.includes("net::ERR_INVALID_URL") ||
+            result.message.includes("Invalid URL") ||
+            result.message.includes("WEB_URL_ERROR")
+          ) {
+            errorType = "ลิงก์เว็บผิด หรือ Domain ไม่ถูกต้อง";
+          } else if (result.message.includes("Test timeout")) {
+            errorType = "เวลารวมของ Test หมด";
+          } else if (
+            result.message.includes("PERFORMANCE_PAGE_LOAD_ERROR")
+          ) {
+            errorType = "โหลดหน้าทดสอบไม่สำเร็จ";
+          } else if (
+            result.message.includes("BROWSER_INITIALIZE_ERROR")
+          ) {
+            errorType = "สร้าง Browser ไม่สำเร็จ";
+          }
 
-      if (
-        message.includes("net::ERR_NAME_NOT_RESOLVED") ||
-        message.includes("net::ERR_INVALID_URL") ||
-        message.includes("Invalid URL") ||
-        message.includes("WEB_URL_ERROR")
-      ) {
-        errorType = "ลิงก์เว็บผิด หรือ Domain ไม่ถูกต้อง";
-      } else if (message.includes("Test timeout")) {
-        errorType = "เวลารวมของ Test หมด (TEST_TIMEOUT)";
-      } else if (message.includes("NORMAL_PAGE_LOAD_ERROR")) {
-        errorType = "โหลดหน้าเว็บปกติไม่สำเร็จ ไม่ใช่ Performance";
-      } else if (message.includes("PERFORMANCE_PAGE_LOAD_ERROR")) {
-        errorType = "โหลดหน้าที่ใช้วัด Performance ไม่สำเร็จ";
-      } else if (message.includes("PERFORMANCE_MEASURE_ERROR")) {
-        errorType = "วัดเวลา Performance ไม่สำเร็จ";
-      } else if (message.includes("PAGE_INITIALIZE_ERROR")) {
-        errorType = "สร้าง Page ไม่สำเร็จ";
-      }
+          console.error(
+            `Run ${run} | Province ${result.provinceId}: โหลดไม่สำเร็จ`,
+          );
 
-      console.error(`Run ที่ ${i}: โหลดไม่สำเร็จ`);
-      console.error(`Error Type: ${errorType}`);
-      console.error(`Error Detail: ${message}`);
+          console.error(`Error Type: ${errorType}`);
+          console.error(`Error Detail: ${result.message}`);
 
-      errorLogs.push(`Run ${i}: ${errorType} | ${message}`);
+          errorLogs.push(
+            `Run ${run} | Province ${result.provinceId}: ${errorType} | ${result.message}`,
+          );
+        }
+      });
     } finally {
       await temperaturePage.close();
     }
   }
+
+  const totalExpected =
+    TEMPERATURE_PERFORMANCE_DATA.TOTAL_RUNS *
+    TEMPERATURE_PERFORMANCE_DATA.PROVINCE_IDS.length;
 
   const totalTime = finishTimes.reduce((sum, time) => sum + time, 0);
 
@@ -100,22 +160,28 @@ test("Performance wrf24hr Page", async () => {
   const minTime = sortedTimes.length > 0 ? sortedTimes[0] : 0;
 
   const maxTime =
-    sortedTimes.length > 0 ? sortedTimes[sortedTimes.length - 1] : 0;
+    sortedTimes.length > 0
+      ? sortedTimes[sortedTimes.length - 1]
+      : 0;
 
-  console.log("----------------------------");
-  console.log(
-    `Success Runs: ${finishTimes.length}/${TEMPERATURE_PERFORMANCE_DATA.TOTAL_RUNS}`,
-  );
-  console.log(
-    `Failed Runs: ${errorLogs.length}/${TEMPERATURE_PERFORMANCE_DATA.TOTAL_RUNS}`,
-  );
+  console.log("====================================");
+
+  console.log(`Success Pages: ${finishTimes.length}/${totalExpected}`);
+
+  console.log(`Failed Pages: ${errorLogs.length}/${totalExpected}`);
+
   console.log(`Total Time: ${totalTime.toFixed(2)} s`);
+
   console.log(`Average Time: ${averageTime.toFixed(2)} s`);
+
   console.log(`Median Time: ${medianTime.toFixed(2)} s`);
+
   console.log(`Min Time: ${minTime.toFixed(2)} s`);
+
   console.log(`Max Time: ${maxTime.toFixed(2)} s`);
 
-  console.log("----------------------------");
+  console.log("====================================");
+
   console.log("Error Summary");
 
   if (errorLogs.length === 0) {
@@ -128,7 +194,7 @@ test("Performance wrf24hr Page", async () => {
 
   if (errorLogs.length > 0) {
     throw new Error(
-      `Performance test failed: ${errorLogs.length}/${TEMPERATURE_PERFORMANCE_DATA.TOTAL_RUNS} runs failed. Please check Error Summary above.`,
+      `Performance test failed: ${errorLogs.length}/${totalExpected} pages failed.`,
     );
   }
 });

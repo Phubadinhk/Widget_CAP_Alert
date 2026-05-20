@@ -5,7 +5,7 @@ export class RainfallPerformancePage {
   private context?: BrowserContext;
   private page?: Page;
 
-  async openNewBrowser(): Promise<void> {
+  async openBrowser(): Promise<void> {
     this.browser = await chromium.launch({
       headless: true,
     });
@@ -18,40 +18,34 @@ export class RainfallPerformancePage {
     this.page = await this.context.newPage();
   }
 
-  async gotoRootThenTargetAndGetNetworkFinishTime(
+  async gotoRootThenTargetAndGetNetworkFinishTimeByNewContext(
     rootUrl: string,
     targetUrl: string,
     waitUntil: "load" | "domcontentloaded" | "networkidle",
     rootTimeout: number,
     targetTimeout: number,
+    screenshotPath?: string,
   ): Promise<number> {
-    if (!this.page) {
-      throw new Error("PAGE_INITIALIZE_ERROR: เกิด Error ตอนสร้าง Page");
+    if (!this.browser) {
+      throw new Error("BROWSER_INITIALIZE_ERROR");
     }
 
+    const context = await this.browser.newContext({
+      ignoreHTTPSErrors: true,
+      locale: "th-TH",
+    });
+
+    const page = await context.newPage();
+
     try {
-      const rootResponse = await this.page.goto(rootUrl, {
+      await page.goto(rootUrl, {
         waitUntil: "networkidle",
         timeout: rootTimeout,
       });
 
-      const rootStatus = rootResponse?.status();
+      await page.waitForTimeout(3000);
 
-      if (rootStatus !== 200) {
-        throw new Error(`Status: ${rootStatus}`);
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-
-      throw new Error(
-        `NORMAL_PAGE_LOAD_ERROR: Error ที่การโหลดหน้าเว็บปกติ ไม่ใช่ Performance ของหน้าที่ทดสอบ | URL: ${rootUrl} | ${message}`,
-      );
-    }
-
-    await this.page.waitForTimeout(3000);
-
-    try {
-      const response = await this.page.goto(targetUrl, {
+      const response = await page.goto(targetUrl, {
         waitUntil,
         timeout: targetTimeout,
       });
@@ -61,16 +55,8 @@ export class RainfallPerformancePage {
       if (status !== 200) {
         throw new Error(`Status: ${status}`);
       }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
 
-      throw new Error(
-        `PERFORMANCE_PAGE_LOAD_ERROR: Error ที่หน้าทดสอบ Performance | URL: ${targetUrl} | ${message}`,
-      );
-    }
-
-    try {
-      const finishTimeMs = await this.page.evaluate(() => {
+      const finishTimeMs = await page.evaluate(() => {
         const resources = performance.getEntriesByType(
           "resource",
         ) as PerformanceResourceTiming[];
@@ -80,18 +66,23 @@ export class RainfallPerformancePage {
         ) as PerformanceNavigationTiming[];
 
         const resourceEndTimes = resources.map((r) => r.responseEnd || 0);
+
         const navEnd = navigations[0]?.responseEnd || 0;
 
         return Math.max(navEnd, ...resourceEndTimes);
       });
 
-      return finishTimeMs / 1000;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      if (screenshotPath) {
+        await page.screenshot({
+          path: screenshotPath,
+          fullPage: true,
+        });
+      }
 
-      throw new Error(
-        `PERFORMANCE_MEASURE_ERROR: Error ตอนวัดเวลา Performance | ${message}`,
-      );
+      return finishTimeMs / 1000;
+    } finally {
+      await page.close();
+      await context.close();
     }
   }
 

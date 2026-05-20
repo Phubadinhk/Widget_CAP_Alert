@@ -2,41 +2,40 @@ import { Browser, BrowserContext, Page, chromium } from "@playwright/test";
 
 export class AlertHistoryPerformancePage {
   private browser?: Browser;
-  private context?: BrowserContext;
-  private page?: Page;
 
-  async openNewBrowser(): Promise<void> {
+  async openBrowser(): Promise<void> {
     this.browser = await chromium.launch({
       headless: true,
     });
-
-    this.context = await this.browser.newContext({
-      ignoreHTTPSErrors: true,
-      locale: "th-TH",
-    });
-
-    this.page = await this.context.newPage();
-
-    this.page.on("response", async (response) => {
-      if (response.status() === 401) {
-        console.log("401 =>", response.url());
-      }
-    });
   }
 
-  async gotoRootThenTargetAndGetNetworkFinishTime(
+  async gotoRootThenTargetAndGetNetworkFinishTimeByNewContext(
     rootUrl: string,
     targetUrl: string,
     waitUntil: "load" | "domcontentloaded" | "networkidle",
     rootTimeout: number,
     targetTimeout: number,
+    screenshotPath?: string,
   ): Promise<number> {
-    if (!this.page) {
-      throw new Error("PAGE_INITIALIZE_ERROR: เกิด Error ตอนสร้าง Page");
+    if (!this.browser) {
+      throw new Error("BROWSER_INITIALIZE_ERROR: ยังไม่ได้สร้าง Browser");
     }
 
+    const context: BrowserContext = await this.browser.newContext({
+      ignoreHTTPSErrors: true,
+      locale: "th-TH",
+    });
+
+    const page: Page = await context.newPage();
+
+    page.on("response", async (response) => {
+      if (response.status() === 401) {
+        console.log("401 =>", response.url());
+      }
+    });
+
     try {
-      const rootResponse = await this.page.goto(rootUrl, {
+      const rootResponse = await page.goto(rootUrl, {
         waitUntil: "networkidle",
         timeout: rootTimeout,
       });
@@ -44,20 +43,12 @@ export class AlertHistoryPerformancePage {
       const rootStatus = rootResponse?.status();
 
       if (rootStatus !== 200) {
-        throw new Error(`Status: ${rootStatus}`);
+        throw new Error(`Root Status: ${rootStatus}`);
       }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
 
-      throw new Error(
-        `NORMAL_PAGE_LOAD_ERROR: Error ที่การโหลดหน้าเว็บปกติ ไม่ใช่ Performance ของหน้าที่ทดสอบ | URL: ${rootUrl} | ${message}`,
-      );
-    }
+      await page.waitForTimeout(3000);
 
-    await this.page.waitForTimeout(3000);
-
-    try {
-      const response = await this.page.goto(targetUrl, {
+      const response = await page.goto(targetUrl, {
         waitUntil,
         timeout: targetTimeout,
       });
@@ -65,18 +56,10 @@ export class AlertHistoryPerformancePage {
       const status = response?.status();
 
       if (status !== 200) {
-        throw new Error(`Status: ${status}`);
+        throw new Error(`Target Status: ${status}`);
       }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
 
-      throw new Error(
-        `PERFORMANCE_PAGE_LOAD_ERROR: Error ที่หน้าทดสอบ Performance | URL: ${targetUrl} | ${message}`,
-      );
-    }
-
-    try {
-      const finishTimeMs = await this.page.evaluate(() => {
+      const finishTimeMs = await page.evaluate(() => {
         const resources = performance.getEntriesByType(
           "resource",
         ) as PerformanceResourceTiming[];
@@ -91,31 +74,27 @@ export class AlertHistoryPerformancePage {
         return Math.max(navEnd, ...resourceEndTimes);
       });
 
+      if (screenshotPath) {
+        await page.screenshot({
+          path: screenshotPath,
+          fullPage: true,
+        });
+      }
+
       return finishTimeMs / 1000;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
 
       throw new Error(
-        `PERFORMANCE_MEASURE_ERROR: Error ตอนวัดเวลา Performance | ${message}`,
+        `PERFORMANCE_PAGE_LOAD_ERROR: Error ที่หน้าทดสอบ Performance | URL: ${targetUrl} | ${message}`,
       );
+    } finally {
+      await page.close();
+      await context.close();
     }
-  }
-
-  async captureScreenshot(path: string): Promise<void> {
-    if (!this.page) {
-      throw new Error(
-        "PAGE_INITIALIZE_ERROR: ไม่สามารถ Capture Screenshot ได้ เพราะ Page ยังไม่ถูกสร้าง",
-      );
-    }
-
-    await this.page.screenshot({
-      path,
-      fullPage: true,
-    });
   }
 
   async close(): Promise<void> {
-    await this.context?.close();
     await this.browser?.close();
   }
 }

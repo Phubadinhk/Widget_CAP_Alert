@@ -1,10 +1,17 @@
 export const WEATHER_PERFORMANCE_DATA = {
   BASE_URL: "https://dev-ndwc.azurewebsites.net",
   ROOT_URL: "https://dev-ndwc.azurewebsites.net",
-  PATH: "/kioskclient/weatherbyprovincepage/42",
-  TOTAL_RUNS: 10,
+  PATH_TEMPLATE: "/kioskclient/weatherbyprovincepage/{provinceId}",
+  TOTAL_RUNS: 1,
   TEST_TIMEOUT: 600000,
-  NAVIGATION_TIMEOUT: 60000,
+  NAVIGATION_TIMEOUT: 120000,
   ROOT_URL_TIMEOUT: 60000,
   WAIT_UNTIL: "networkidle" as const,
+
+  PROVINCE_IDS: [
+    3, 7, 9, 12, 15,
+    // 18, 22, 27, 31, 35,
+    // 39, 42, 46, 50, 54,
+    // 58, 63, 67, 72, 77,
+  ],
 };

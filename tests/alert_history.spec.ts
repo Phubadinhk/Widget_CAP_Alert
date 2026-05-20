@@ -5,6 +5,26 @@ import { test } from "@playwright/test";
 import { ALERT_HISTORY_PERFORMANCE_DATA } from "../test-data/alert_history.data";
 import { AlertHistoryPerformancePage } from "../page-object/alert_history";
 
+type PerformanceSuccessResult = {
+  success: true;
+  run: number;
+  instance: number;
+  geocode: string;
+  finishTimeSec: number;
+};
+
+type PerformanceFailResult = {
+  success: false;
+  run: number;
+  instance: number;
+  geocode: string;
+  message: string;
+};
+
+type PerformanceResult =
+  | PerformanceSuccessResult
+  | PerformanceFailResult;
+
 test("Performance DisasterAlertHistory Page", async () => {
   test.setTimeout(ALERT_HISTORY_PERFORMANCE_DATA.TEST_TIMEOUT);
 
@@ -17,68 +37,110 @@ test("Performance DisasterAlertHistory Page", async () => {
     throw new Error("Missing KIOSK_TOKEN in .env");
   }
 
-  const fullUrl = new URL(
-    `${ALERT_HISTORY_PERFORMANCE_DATA.PATH}/${token}`,
-    ALERT_HISTORY_PERFORMANCE_DATA.BASE_URL,
-  ).toString();
-
   console.log("Performance Result DisasterAlertHistory Page");
+  console.log(
+    `1 Run = 1 Browser | เปิดพร้อมกัน ${ALERT_HISTORY_PERFORMANCE_DATA.GEOCODE.length} Contexts`,
+  );
 
-  for (let i = 1; i <= ALERT_HISTORY_PERFORMANCE_DATA.TOTAL_RUNS; i++) {
+  for (let run = 1; run <= ALERT_HISTORY_PERFORMANCE_DATA.TOTAL_RUNS; run++) {
+    console.log(`================ Run ${run} ================`);
+
     const alertHistoryPage = new AlertHistoryPerformancePage();
 
     try {
-      await alertHistoryPage.openNewBrowser();
+      await alertHistoryPage.openBrowser();
 
-      const finishTimeSec =
-        await alertHistoryPage.gotoRootThenTargetAndGetNetworkFinishTime(
-          ALERT_HISTORY_PERFORMANCE_DATA.ROOT_URL,
-          fullUrl,
-          ALERT_HISTORY_PERFORMANCE_DATA.WAIT_UNTIL,
-          ALERT_HISTORY_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,
-          ALERT_HISTORY_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
-        );
+      const tasks: Promise<PerformanceResult>[] =
+        ALERT_HISTORY_PERFORMANCE_DATA.GEOCODE.map(async (geocode, index) => {
+          const instance = index + 1;
 
-      await alertHistoryPage.captureScreenshot(
-        `reports/screenshots/AlertHistory/run-${i}.png`,
-      );
+          try {
+            const path =
+              ALERT_HISTORY_PERFORMANCE_DATA.PATH_TEMPLATE.replace(
+                "{geocode}",
+                geocode,
+              );
 
-      finishTimes.push(finishTimeSec);
+            const fullUrl =
+              `${ALERT_HISTORY_PERFORMANCE_DATA.BASE_URL}` +
+              `${path}/${token}`;
 
-      console.log(`Run ที่ ${i}: ${finishTimeSec.toFixed(2)} s`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+            const finishTimeSec =
+              await alertHistoryPage.gotoRootThenTargetAndGetNetworkFinishTimeByNewContext(
+                ALERT_HISTORY_PERFORMANCE_DATA.ROOT_URL,
+                fullUrl,
+                ALERT_HISTORY_PERFORMANCE_DATA.WAIT_UNTIL,
+                ALERT_HISTORY_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,
+                ALERT_HISTORY_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
+                `reports/screenshots/AlertHistory/run-${run}-geocode-${geocode}.png`,
+              );
 
-      let errorType = "UNKNOWN_ERROR";
+            return {
+              success: true as const,
+              run,
+              instance,
+              geocode,
+              finishTimeSec,
+            };
+          } catch (error) {
+            return {
+              success: false as const,
+              run,
+              instance,
+              geocode,
+              message: error instanceof Error ? error.message : String(error),
+            };
+          }
+        });
 
-      if (
-        message.includes("net::ERR_NAME_NOT_RESOLVED") ||
-        message.includes("net::ERR_INVALID_URL") ||
-        message.includes("Invalid URL") ||
-        message.includes("WEB_URL_ERROR")
-      ) {
-        errorType = "ลิงก์เว็บผิด หรือ Domain ไม่ถูกต้อง";
-      } else if (message.includes("Test timeout")) {
-        errorType = "เวลารวมของ Test หมด (TEST_TIMEOUT)";
-      } else if (message.includes("NORMAL_PAGE_LOAD_ERROR")) {
-        errorType = "โหลดหน้าเว็บปกติไม่สำเร็จ ไม่ใช่ Performance";
-      } else if (message.includes("PERFORMANCE_PAGE_LOAD_ERROR")) {
-        errorType = "โหลดหน้าที่ใช้วัด Performance ไม่สำเร็จ";
-      } else if (message.includes("PERFORMANCE_MEASURE_ERROR")) {
-        errorType = "วัดเวลา Performance ไม่สำเร็จ";
-      } else if (message.includes("PAGE_INITIALIZE_ERROR")) {
-        errorType = "สร้าง Page ไม่สำเร็จ";
-      }
+      const results = await Promise.all(tasks);
 
-      console.error(`Run ที่ ${i}: โหลดไม่สำเร็จ`);
-      console.error(`Error Type: ${errorType}`);
-      console.error(`Error Detail: ${message}`);
+      results.forEach((result) => {
+        if (result.success) {
+          finishTimes.push(result.finishTimeSec);
 
-      errorLogs.push(`Run ${i}: ${errorType} | ${message}`);
+          console.log(
+            `Run ${result.run} | Geocode ${result.geocode}: ${result.finishTimeSec.toFixed(2)} s`,
+          );
+        } else {
+          let errorType = "UNKNOWN_ERROR";
+
+          if (
+            result.message.includes("net::ERR_NAME_NOT_RESOLVED") ||
+            result.message.includes("net::ERR_INVALID_URL") ||
+            result.message.includes("Invalid URL") ||
+            result.message.includes("WEB_URL_ERROR")
+          ) {
+            errorType = "ลิงก์เว็บผิด หรือ Domain ไม่ถูกต้อง";
+          } else if (result.message.includes("Test timeout")) {
+            errorType = "เวลารวมของ Test หมด";
+          } else if (result.message.includes("NORMAL_PAGE_LOAD_ERROR")) {
+            errorType = "โหลดหน้าเว็บปกติไม่สำเร็จ ไม่ใช่ Performance";
+          } else if (result.message.includes("PERFORMANCE_PAGE_LOAD_ERROR")) {
+            errorType = "โหลดหน้าทดสอบไม่สำเร็จ";
+          } else if (result.message.includes("BROWSER_INITIALIZE_ERROR")) {
+            errorType = "สร้าง Browser ไม่สำเร็จ";
+          }
+
+          console.error(
+            `Run ${result.run} | Geocode ${result.geocode}: โหลดไม่สำเร็จ`,
+          );
+          console.error(`Error Type: ${errorType}`);
+          console.error(`Error Detail: ${result.message}`);
+
+          errorLogs.push(
+            `Run ${result.run} | Geocode ${result.geocode}: ${errorType} | ${result.message}`,
+          );
+        }
+      });
     } finally {
       await alertHistoryPage.close();
     }
   }
+
+  const totalExpected =
+    ALERT_HISTORY_PERFORMANCE_DATA.TOTAL_RUNS *
+    ALERT_HISTORY_PERFORMANCE_DATA.GEOCODE.length;
 
   const totalTime = finishTimes.reduce((sum, time) => sum + time, 0);
 
@@ -103,20 +165,16 @@ test("Performance DisasterAlertHistory Page", async () => {
   const maxTime =
     sortedTimes.length > 0 ? sortedTimes[sortedTimes.length - 1] : 0;
 
-  console.log("----------------------------");
-  console.log(
-    `Success Runs: ${finishTimes.length}/${ALERT_HISTORY_PERFORMANCE_DATA.TOTAL_RUNS}`,
-  );
-  console.log(
-    `Failed Runs: ${errorLogs.length}/${ALERT_HISTORY_PERFORMANCE_DATA.TOTAL_RUNS}`,
-  );
+  console.log("====================================");
+  console.log(`Success Pages: ${finishTimes.length}/${totalExpected}`);
+  console.log(`Failed Pages: ${errorLogs.length}/${totalExpected}`);
   console.log(`Total Time: ${totalTime.toFixed(2)} s`);
   console.log(`Average Time: ${averageTime.toFixed(2)} s`);
   console.log(`Median Time: ${medianTime.toFixed(2)} s`);
   console.log(`Min Time: ${minTime.toFixed(2)} s`);
   console.log(`Max Time: ${maxTime.toFixed(2)} s`);
 
-  console.log("----------------------------");
+  console.log("====================================");
   console.log("Error Summary");
 
   if (errorLogs.length === 0) {
@@ -129,7 +187,7 @@ test("Performance DisasterAlertHistory Page", async () => {
 
   if (errorLogs.length > 0) {
     throw new Error(
-      `Performance test failed: ${errorLogs.length}/${ALERT_HISTORY_PERFORMANCE_DATA.TOTAL_RUNS} runs failed. Please check Error Summary above.`,
+      `Performance test failed: ${errorLogs.length}/${totalExpected} pages failed.`,
     );
   }
 });

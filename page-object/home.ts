@@ -2,17 +2,26 @@ import { Browser, BrowserContext, Page, chromium } from "@playwright/test";
 
 export class HomePerformancePage {
   private browser?: Browser;
-  private context?: BrowserContext;
-  private page?: Page;
 
-  async openNewBrowserNoCache(): Promise<void> {
+  async openBrowser(): Promise<void> {
     this.browser = await chromium.launch();
+  }
 
-    this.context = await this.browser.newContext({
+  async gotoAndGetNetworkFinishTimeByNewContext(
+    url: string,
+    waitUntil: "load" | "domcontentloaded" | "networkidle",
+    timeout: number,
+    screenshotPath?: string,
+  ): Promise<number> {
+    if (!this.browser) {
+      throw new Error("BROWSER_INITIALIZE_ERROR: ยังไม่ได้สร้าง Browser");
+    }
+
+    const context: BrowserContext = await this.browser.newContext({
       ignoreHTTPSErrors: true,
     });
 
-    await this.context.route("**/*", async (route) => {
+    await context.route("**/*", async (route) => {
       const headers = {
         ...route.request().headers(),
         "Cache-Control": "no-cache",
@@ -22,20 +31,10 @@ export class HomePerformancePage {
       await route.continue({ headers });
     });
 
-    this.page = await this.context.newPage();
-  }
-
-  async gotoAndGetNetworkFinishTime(
-    url: string,
-    waitUntil: "load" | "domcontentloaded" | "networkidle",
-    timeout: number,
-  ): Promise<number> {
-    if (!this.page) {
-      throw new Error("PAGE_INITIALIZE_ERROR: เกิด Error ตอนสร้าง Page");
-    }
+    const page: Page = await context.newPage();
 
     try {
-      const response = await this.page.goto(url, {
+      const response = await page.goto(url, {
         waitUntil,
         timeout,
       });
@@ -45,16 +44,8 @@ export class HomePerformancePage {
       if (status !== 200) {
         throw new Error(`Status: ${status}`);
       }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
 
-      throw new Error(
-        `PERFORMANCE_PAGE_LOAD_ERROR: Error ที่หน้าทดสอบ Performance | URL: ${url} | ${message}`,
-      );
-    }
-
-    try {
-      const finishTimeMs = await this.page.evaluate(() => {
+      const finishTimeMs = await page.evaluate(() => {
         const resources = performance.getEntriesByType(
           "resource",
         ) as PerformanceResourceTiming[];
@@ -69,31 +60,27 @@ export class HomePerformancePage {
         return Math.max(navEnd, ...resourceEndTimes);
       });
 
+      if (screenshotPath) {
+        await page.screenshot({
+          path: screenshotPath,
+          fullPage: true,
+        });
+      }
+
       return finishTimeMs / 1000;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
 
       throw new Error(
-        `PERFORMANCE_MEASURE_ERROR: Error ตอนวัดเวลา Performance | ${message}`,
+        `PERFORMANCE_PAGE_LOAD_ERROR: Error ที่หน้าทดสอบ Performance | URL: ${url} | ${message}`,
       );
+    } finally {
+      await page.close();
+      await context.close();
     }
-  }
-
-  async captureScreenshot(path: string): Promise<void> {
-    if (!this.page) {
-      throw new Error(
-        "PAGE_INITIALIZE_ERROR: ไม่สามารถ Capture Screenshot ได้ เพราะ Page ยังไม่ถูกสร้าง",
-      );
-    }
-
-    await this.page.screenshot({
-      path,
-      fullPage: true,
-    });
   }
 
   async close(): Promise<void> {
-    await this.context?.close();
     await this.browser?.close();
   }
 }

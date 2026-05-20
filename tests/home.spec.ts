@@ -2,7 +2,23 @@ import { test } from "@playwright/test";
 import { HOME_PERFORMANCE_DATA } from "../test-data/home.data";
 import { HomePerformancePage } from "../page-object/home";
 
-test("Performance Main Page", async () => {
+type PerformanceSuccessResult = {
+  success: true;
+  provinceId: number;
+  stationId: number;
+  finishTimeSec: number;
+};
+
+type PerformanceFailResult = {
+  success: false;
+  provinceId: number;
+  stationId: number;
+  message: string;
+};
+
+type PerformanceResult = PerformanceSuccessResult | PerformanceFailResult;
+
+test("Performance Main Page - 20 contexts concurrent", async () => {
   test.setTimeout(HOME_PERFORMANCE_DATA.TEST_TIMEOUT);
 
   const finishTimes: number[] = [];
@@ -14,62 +30,117 @@ test("Performance Main Page", async () => {
     throw new Error("Missing KIOSK_TOKEN in .env");
   }
 
-  const fullUrl =
-    `${HOME_PERFORMANCE_DATA.BASE_URL}` +
-    `${HOME_PERFORMANCE_DATA.PATH}/${token}`;
+  if (
+    HOME_PERFORMANCE_DATA.PROVINCE_IDS.length !==
+    HOME_PERFORMANCE_DATA.STATION_IDS.length
+  ) {
+    throw new Error(
+      "PROVINCE_IDS และ STATION_IDS ต้องมีจำนวนเท่ากัน",
+    );
+  }
 
   console.log("Performance Result Main Page");
+  console.log(
+    `1 Run = 1 Browser | เปิดพร้อมกัน ${HOME_PERFORMANCE_DATA.PROVINCE_IDS.length} Contexts`,
+  );
 
-  for (let i = 1; i <= HOME_PERFORMANCE_DATA.TOTAL_RUNS; i++) {
+  for (let run = 1; run <= HOME_PERFORMANCE_DATA.TOTAL_RUNS; run++) {
+    console.log(`================ Run ${run} ================`);
+
     const homePage = new HomePerformancePage();
 
     try {
-      await homePage.openNewBrowserNoCache();
+      await homePage.openBrowser();
 
-      const finishTimeSec = await homePage.gotoAndGetNetworkFinishTime(
-        fullUrl,
-        HOME_PERFORMANCE_DATA.WAIT_UNTIL,
-        HOME_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
-      );
+      const tasks: Promise<PerformanceResult>[] =
+        HOME_PERFORMANCE_DATA.PROVINCE_IDS.map(
+          async (provinceId, index) => {
+            const stationId =
+              HOME_PERFORMANCE_DATA.STATION_IDS[index];
 
-      await homePage.captureScreenshot(
-        `reports/screenshots/MainPage/run-${i}.png`,
-      );
-      
-      finishTimes.push(finishTimeSec);
+            try {
+              const path = HOME_PERFORMANCE_DATA.PATH_TEMPLATE
+                .replace("{provinceId}", String(provinceId))
+                .replace("{stationId}", String(stationId));
 
-      console.log(`Run ที่ ${i}: ${finishTimeSec.toFixed(2)} s`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+              const fullUrl =
+                `${HOME_PERFORMANCE_DATA.BASE_URL}` +
+                `${path}/${token}`;
 
-      let errorType = "UNKNOWN_ERROR";
+              const finishTimeSec =
+                await homePage.gotoAndGetNetworkFinishTimeByNewContext(
+                  fullUrl,
+                  HOME_PERFORMANCE_DATA.WAIT_UNTIL,
+                  HOME_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
+                  `reports/screenshots/MainPage/run-${run}-province-${provinceId}-station-${stationId}.png`,
+                );
 
-      if (
-        message.includes("net::ERR_NAME_NOT_RESOLVED") ||
-        message.includes("net::ERR_INVALID_URL") ||
-        message.includes("Invalid URL") ||
-        message.includes("WEB_URL_ERROR")
-      ) {
-        errorType = "ลิงก์เว็บผิด หรือ Domain ไม่ถูกต้อง";
-      } else if (message.includes("Test timeout")) {
-        errorType = "เวลารวมของ Test หมด (TEST_TIMEOUT)";
-      } else if (message.includes("NORMAL_PAGE_LOAD_ERROR")) {
-        errorType = "โหลดหน้าที่ใช้วัด Performance ไม่สำเร็จ";
-      } else if (message.includes("PERFORMANCE_MEASURE_ERROR")) {
-        errorType = "วัดเวลา Performance ไม่สำเร็จ";
-      } else if (message.includes("PAGE_INITIALIZE_ERROR")) {
-        errorType = "สร้าง Page ไม่สำเร็จ";
-      }
+              return {
+                success: true as const,
+                provinceId,
+                stationId,
+                finishTimeSec,
+              };
+            } catch (error) {
+              const message =
+                error instanceof Error ? error.message : String(error);
 
-      console.error(`Run ที่ ${i}: โหลดไม่สำเร็จ`);
-      console.error(`Error Type: ${errorType}`);
-      console.error(`Error Detail: ${message}`);
+              return {
+                success: false as const,
+                provinceId,
+                stationId,
+                message,
+              };
+            }
+          },
+        );
 
-      errorLogs.push(`Run ${i}: ${errorType} | ${message}`);
+      const results = await Promise.all(tasks);
+
+      results.forEach((result) => {
+        if (result.success) {
+          finishTimes.push(result.finishTimeSec);
+
+          console.log(
+            `Run ${run} | Province ${result.provinceId} | Station ${result.stationId}: ${result.finishTimeSec.toFixed(2)} s`,
+          );
+        } else {
+          let errorType = "UNKNOWN_ERROR";
+
+          if (
+            result.message.includes("net::ERR_NAME_NOT_RESOLVED") ||
+            result.message.includes("net::ERR_INVALID_URL") ||
+            result.message.includes("Invalid URL") ||
+            result.message.includes("WEB_URL_ERROR")
+          ) {
+            errorType = "ลิงก์เว็บผิด หรือ Domain ไม่ถูกต้อง";
+          } else if (result.message.includes("Test timeout")) {
+            errorType = "เวลารวมของ Test หมด";
+          } else if (result.message.includes("PERFORMANCE_PAGE_LOAD_ERROR")) {
+            errorType = "โหลดหน้าทดสอบไม่สำเร็จ";
+          } else if (result.message.includes("BROWSER_INITIALIZE_ERROR")) {
+            errorType = "สร้าง Browser ไม่สำเร็จ";
+          }
+
+          console.error(
+            `Run ${run} | Province ${result.provinceId} | Station ${result.stationId}: โหลดไม่สำเร็จ`,
+          );
+          console.error(`Error Type: ${errorType}`);
+          console.error(`Error Detail: ${result.message}`);
+
+          errorLogs.push(
+            `Run ${run} | Province ${result.provinceId} | Station ${result.stationId}: ${errorType} | ${result.message}`,
+          );
+        }
+      });
     } finally {
       await homePage.close();
     }
   }
+
+  const totalExpected =
+    HOME_PERFORMANCE_DATA.TOTAL_RUNS *
+    HOME_PERFORMANCE_DATA.PROVINCE_IDS.length;
 
   const totalTime = finishTimes.reduce((sum, time) => sum + time, 0);
 
@@ -94,20 +165,16 @@ test("Performance Main Page", async () => {
   const maxTime =
     sortedTimes.length > 0 ? sortedTimes[sortedTimes.length - 1] : 0;
 
-  console.log("----------------------------");
-  console.log(
-    `Success Runs: ${finishTimes.length}/${HOME_PERFORMANCE_DATA.TOTAL_RUNS}`,
-  );
-  console.log(
-    `Failed Runs: ${errorLogs.length}/${HOME_PERFORMANCE_DATA.TOTAL_RUNS}`,
-  );
+  console.log("====================================");
+  console.log(`Success Pages: ${finishTimes.length}/${totalExpected}`);
+  console.log(`Failed Pages: ${errorLogs.length}/${totalExpected}`);
   console.log(`Total Time: ${totalTime.toFixed(2)} s`);
   console.log(`Average Time: ${averageTime.toFixed(2)} s`);
   console.log(`Median Time: ${medianTime.toFixed(2)} s`);
   console.log(`Min Time: ${minTime.toFixed(2)} s`);
   console.log(`Max Time: ${maxTime.toFixed(2)} s`);
 
-  console.log("----------------------------");
+  console.log("====================================");
   console.log("Error Summary");
 
   if (errorLogs.length === 0) {
@@ -120,7 +187,7 @@ test("Performance Main Page", async () => {
 
   if (errorLogs.length > 0) {
     throw new Error(
-      `Performance test failed: ${errorLogs.length}/${HOME_PERFORMANCE_DATA.TOTAL_RUNS} runs failed. Please check Error Summary above.`,
+      `Performance test failed: ${errorLogs.length}/${totalExpected} pages failed.`,
     );
   }
 });
