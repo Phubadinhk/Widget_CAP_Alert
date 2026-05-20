@@ -161,6 +161,7 @@ jobs:
                 (r"Run ที่ (\d+): ([\d.]+) s", "run"),
                 (r"Run (\d+) \| Province ([^:]+): ([\d.]+) s", "target"),
                 (r"Run (\d+) \| Geocode ([^:]+): ([\d.]+) s", "target"),
+                (r"Run (\d+) \| Context ([^:]+): ([\d.]+) s", "target"),
                 (r"Run (\d+) \| Instance ([^:]+): ([\d.]+) s", "target"),
                 (r"Run (\d+) \| .*?Instance ([^:]+): ([\d.]+) s", "target"),
                 (r"Instance (\d+): ([\d.]+) s", "instance"),
@@ -185,6 +186,7 @@ jobs:
                   r"Run ที่ (\d+): โหลดไม่สำเร็จ",
                   r"Run (\d+) \| Province ([^:]+): โหลดไม่สำเร็จ",
                   r"Run (\d+) \| Geocode ([^:]+): โหลดไม่สำเร็จ",
+                  r"Run (\d+) \| Context ([^:]+): โหลดไม่สำเร็จ",
                   r"Run (\d+) \| Instance ([^:]+): โหลดไม่สำเร็จ",
                   r"Instance ([^:]+): โหลดไม่สำเร็จ",
               ]
