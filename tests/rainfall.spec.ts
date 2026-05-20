@@ -122,6 +122,17 @@ test("Performance cumulativeRainfall Page - 20 Contexts", async () => {
 
   const sortedTimes = [...finishTimes].sort((a, b) => a - b);
 
+  let medianTime = 0;
+
+  if (sortedTimes.length > 0) {
+    const middleIndex = Math.floor(sortedTimes.length / 2);
+
+    medianTime =
+      sortedTimes.length % 2 === 0
+        ? (sortedTimes[middleIndex - 1] + sortedTimes[middleIndex]) / 2
+        : sortedTimes[middleIndex];
+  }
+
   const minTime = sortedTimes.length > 0 ? sortedTimes[0] : 0;
 
   const maxTime =
@@ -132,6 +143,7 @@ test("Performance cumulativeRainfall Page - 20 Contexts", async () => {
   console.log(`Failed Contexts: ${errorLogs.length}/${totalExpected}`);
   console.log(`Total Time: ${totalTime.toFixed(2)} s`);
   console.log(`Average Time: ${averageTime.toFixed(2)} s`);
+  console.log(`Median Time: ${medianTime.toFixed(2)} s`);
   console.log(`Min Time: ${minTime.toFixed(2)} s`);
   console.log(`Max Time: ${maxTime.toFixed(2)} s`);
   console.log("====================================");
