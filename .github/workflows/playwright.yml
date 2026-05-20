@@ -140,8 +140,6 @@ jobs:
               "RunNo",
               "Target",
               "LoadTimeSec",
-              "ErrorType",
-              "ErrorDetail",
               "Success",
               "Failed",
               "TotalTimeSec",
@@ -149,6 +147,8 @@ jobs:
               "MedianTimeSec",
               "MinTimeSec",
               "MaxTimeSec",
+              "ErrorType",
+              "ErrorDetail",
           ]
 
           header_fill = PatternFill(start_color="D9EAF7", end_color="D9EAF7", fill_type="solid")
@@ -301,15 +301,15 @@ jobs:
                       row["run_no"],
                       row["target"],
                       row["load_time"],
+                      "",
+                      "",
+                      "",
+                      "",
+                      "",
+                      "",
+                      "",
                       row["error_type"],
                       row["error_detail"],
-                      "",
-                      "",
-                      "",
-                      "",
-                      "",
-                      "",
-                      "",
                   ])
 
                   if row["load_time"] == "FAILED":
@@ -322,15 +322,15 @@ jobs:
                   "SUMMARY",
                   "",
                   "",
-                  "",
-                  "",
                   success_count,
                   failed_count,
                   total_time,
                   average_time,
                   median_time,
                   min_time,
-                  max_time,
+                  max_time,                 
+                  "",
+                  "",
               ])
 
               for cell in ws[ws.max_row]:
