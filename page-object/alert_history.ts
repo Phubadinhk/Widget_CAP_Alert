@@ -29,7 +29,7 @@ export class AlertHistoryPerformancePage {
 
     this.contexts.push(context);
 
-    const page = await context.newPage();
+    const page: Page = await context.newPage();
 
     try {
       await page.goto(rootUrl, {
