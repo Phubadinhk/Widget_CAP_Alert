@@ -34,7 +34,7 @@ jobs:
         shell: bash
         run: |
           echo "RUN_DATE=$(TZ=Asia/Bangkok date +'%Y-%m-%d')" >> $GITHUB_ENV
-          echo "RUN_START_TIME_ONLY=$(TZ=Asia/Bangkok date +'%H:%M:%S')" >> $GITHUB_ENV
+          echo "RUN_START_TIME_ONLY=$(TZ=Asia/Bangkok date +'+%d/%m/%Y %H:%M:%S')" >> $GITHUB_ENV
 
       - name: Prepare report folders
         shell: bash
