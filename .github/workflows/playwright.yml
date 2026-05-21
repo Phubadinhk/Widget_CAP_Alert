@@ -418,6 +418,169 @@ jobs:
         shell: bash
         env:
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          STATUS: ${{ job.status }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ARTIFACT_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          RUN_END_TIME=$(TZ='Asia/Bangkok' date '+%d/%m/%Y %H:%M:%S')
+          export RUN_END_TIME
+
+          python - <<'PY'
+          import json
+          import os
+          import re
+
+          run_start_time = os.environ.get("RUN_START_TIME", os.environ.get("RUN_START_TIME_ONLY", "N/A"))
+          run_end_time = os.environ.get("RUN_END_TIME", "N/A")
+          status = os.environ.get("STATUS", "N/A")
+          run_url = os.environ.get("RUN_URL", "N/A")
+          artifact_url = os.environ.get("ARTIFACT_URL", "N/A")
+
+          files = [
+              ("home", "MainPage"),
+              ("alert_history", "DisasterAlertHistory"),
+              ("danger", "DangerSituation"),
+              ("five-day", "wrf5Day"),
+              ("rainfall", "CumulativeRainfall"),
+              ("temperature", "wrf24hr"),
+              ("weather_province", "WeatherByProvincePage"),
+          ]
+
+          summary_text = ""
+
+          for test_name, display_name in files:
+              report_path = f"reports/{test_name}-report.txt"
+
+              success_count = "N/A"
+              failed_count = "N/A"
+              total_time = "N/A"
+              average_time = "N/A"
+              median_time = "N/A"
+              min_time = "N/A"
+              max_time = "N/A"
+              error_summary = []
+
+              if os.path.exists(report_path):
+                  with open(report_path, "r", encoding="utf-8") as f:
+                      lines = f.readlines()
+
+                  for line in lines:
+                      text = line.strip()
+
+                      if (
+                          text.startswith("Success Runs")
+                          or text.startswith("Success Pages")
+                          or text.startswith("Success Contexts")
+                      ):
+                          success_count = text.split(":", 1)[1].strip()
+
+                      if (
+                          text.startswith("Failed Runs")
+                          or text.startswith("Failed Pages")
+                          or text.startswith("Failed Contexts")
+                      ):
+                          failed_count = text.split(":", 1)[1].strip()
+
+                      if text.startswith("Total Time"):
+                          total_time = text.split(":", 1)[1].strip()
+
+                      if text.startswith("Average Time"):
+                          average_time = text.split(":", 1)[1].strip()
+
+                      if text.startswith("Median Time"):
+                          median_time = text.split(":", 1)[1].strip()
+
+                      if text.startswith("Min Time"):
+                          min_time = text.split(":", 1)[1].strip()
+
+                      if text.startswith("Max Time"):
+                          max_time = text.split(":", 1)[1].strip()
+
+                      error_match = re.match(
+                          r"(Run \d+.*?|Instance \d+|Context \d+): (.*?) \|",
+                          text,
+                      )
+
+                      if error_match:
+                          error_summary.append(
+                              f"{error_match.group(1)}: {error_match.group(2)}"
+                          )
+
+              error_text = "No Errors"
+
+              if error_summary:
+                  error_text = "\n".join(error_summary[:10])
+
+              summary_text += (
+                  f"{display_name}\n"
+                  f"Success: {success_count}\n"
+                  f"Failed: {failed_count}\n"
+                  f"Total Time: {total_time}\n"
+                  f"Average Time: {average_time}\n"
+                  f"Median Time: {median_time}\n"
+                  f"Min Time: {min_time}\n"
+                  f"Max Time: {max_time}\n"
+                  f"Error Summary:\n{error_text}\n\n"
+              )
+
+          payload = {
+              "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+              "type": "AdaptiveCard",
+              "version": "1.4",
+              "body": [
+                  {
+                      "type": "TextBlock",
+                      "text": "Playwright Performance Summary",
+                      "weight": "Bolder",
+                      "size": "Medium"
+                  },
+                  {
+                      "type": "TextBlock",
+                      "text": f"Status: {status}",
+                      "wrap": True
+                  },
+                  {
+                      "type": "TextBlock",
+                      "text": f"Run Start (TH): {run_start_time}",
+                      "wrap": True
+                  },
+                  {
+                      "type": "TextBlock",
+                      "text": f"Run End (TH): {run_end_time}",
+                      "wrap": True
+                  },
+                  {
+                      "type": "TextBlock",
+                      "text": f"Run Report: {run_url}",
+                      "wrap": True
+                  },
+                  {
+                      "type": "TextBlock",
+                      "text": f"Artifacts: {artifact_url}",
+                      "wrap": True
+                  },
+                  {
+                      "type": "TextBlock",
+                      "text": summary_text,
+                      "wrap": True,
+                      "size": "Small"
+                  }
+              ]
+          }
+
+          with open("teams-payload.json", "w", encoding="utf-8") as f:
+              json.dump(payload, f, ensure_ascii=False)
+
+          PY
+
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -d @teams-payload.json \
+            "$TEAMS_WEBHOOK_URL"
+        if: always()
+        shell: bash
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
         run: |
           python - <<'PY'
           import json
