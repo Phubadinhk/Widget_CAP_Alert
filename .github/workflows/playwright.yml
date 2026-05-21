@@ -1,3 +1,89 @@
+name: Performance Test
+
+on:
+  schedule:
+    - cron: "11 0 * * *" # 07:11 ไทย
+    - cron: "32 8 * * *" # 15:32 ไทย
+  workflow_dispatch:
+
+jobs:
+  performance-test:
+    runs-on: ubuntu-latest
+
+    env:
+      KIOSK_TOKEN: ${{ secrets.KIOSK_TOKEN }}
+      RUN_DATE: ${{ github.run_id }}
+      RUN_START_TIME_ONLY: ""
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Set run datetime
+        shell: bash
+        run: |
+          echo "RUN_DATE=$(TZ=Asia/Bangkok date +'%Y-%m-%d')" >> $GITHUB_ENV
+          echo "RUN_START_TIME_ONLY=$(TZ=Asia/Bangkok date +'%H:%M:%S')" >> $GITHUB_ENV
+
+      - name: Prepare report folders
+        shell: bash
+        run: |
+          mkdir -p reports
+          mkdir -p reports/screenshots
+
+      - name: Run Home performance test
+        continue-on-error: true
+        shell: bash
+        run: |
+          npx playwright test tests/home.spec.ts | tee reports/home-report.txt
+
+      - name: Run Alert History performance test
+        continue-on-error: true
+        shell: bash
+        run: |
+          npx playwright test tests/alert_history.spec.ts | tee reports/alert_history-report.txt
+
+      - name: Run Danger performance test
+        continue-on-error: true
+        shell: bash
+        run: |
+          npx playwright test tests/danger.spec.ts | tee reports/danger-report.txt
+
+      - name: Run Five Day performance test
+        continue-on-error: true
+        shell: bash
+        run: |
+          npx playwright test tests/five-day.spec.ts | tee reports/five-day-report.txt
+
+      - name: Run Rainfall performance test
+        continue-on-error: true
+        shell: bash
+        run: |
+          npx playwright test tests/rainfall.spec.ts | tee reports/rainfall-report.txt
+
+      - name: Run Temperature performance test
+        continue-on-error: true
+        shell: bash
+        run: |
+          npx playwright test tests/temperature.spec.ts | tee reports/temperature-report.txt
+
+      - name: Run Weather Province performance test
+        continue-on-error: true
+        shell: bash
+        run: |
+          npx playwright test tests/weather_province.spec.ts | tee reports/weather_province-report.txt
+
       - name: Create Excel performance report
         if: always()
         shell: bash
@@ -13,8 +99,8 @@
           from openpyxl.styles import PatternFill, Font, Alignment
           from openpyxl.utils import get_column_letter
 
-          run_date = os.environ["RUN_DATE"]
-          current_time = os.environ["RUN_START_TIME_ONLY"]
+          run_date = os.environ.get("RUN_DATE", "")
+          current_time = os.environ.get("RUN_START_TIME_ONLY", "")
 
           files = [
               ("home", "MainPage"),
@@ -223,12 +309,6 @@
                       row["target"],
                   ]
 
-                  if row["target"].startswith("Context "):
-                      error_keys.append(f'Run {row["run_no"]} | {row["target"]}')
-
-                  if row["target"].startswith("Instance "):
-                      error_keys.append(f'Run {row["run_no"]} | {row["target"]}')
-
                   for key in error_keys:
                       if key in error_map:
                           row["error_type"] = error_map[key]["error_type"]
@@ -289,3 +369,24 @@
           wb.save(filename)
           print(f"Created Excel file: {filename}")
           PY
+
+      - name: Upload Excel performance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: excel-performance-report
+          path: performance-report-*.xlsx
+
+      - name: Upload text reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: text-performance-reports
+          path: reports/*.txt
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-screenshots
+          path: reports/screenshots
