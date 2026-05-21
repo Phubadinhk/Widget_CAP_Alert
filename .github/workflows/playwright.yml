@@ -41,48 +41,70 @@ jobs:
         run: |
           mkdir -p reports
           mkdir -p reports/screenshots
+          : > reports/test-status.txt
 
       - name: Run Home performance test
-        continue-on-error: true
         shell: bash
         run: |
-          npx playwright test tests/home.spec.ts | tee reports/home-report.txt
+          set +e
+          npx playwright test tests/home.spec.ts 2>&1 | tee reports/home-report.txt
+          exit_code=${PIPESTATUS[0]}
+          echo "home=$exit_code" >> reports/test-status.txt
+          exit 0
 
       - name: Run Alert History performance test
-        continue-on-error: true
         shell: bash
         run: |
-          npx playwright test tests/alert_history.spec.ts | tee reports/alert_history-report.txt
+          set +e
+          npx playwright test tests/alert_history.spec.ts 2>&1 | tee reports/alert_history-report.txt
+          exit_code=${PIPESTATUS[0]}
+          echo "alert_history=$exit_code" >> reports/test-status.txt
+          exit 0
 
       - name: Run Danger performance test
-        continue-on-error: true
         shell: bash
         run: |
-          npx playwright test tests/danger.spec.ts | tee reports/danger-report.txt
+          set +e
+          npx playwright test tests/danger.spec.ts 2>&1 | tee reports/danger-report.txt
+          exit_code=${PIPESTATUS[0]}
+          echo "danger=$exit_code" >> reports/test-status.txt
+          exit 0
 
       - name: Run Five Day performance test
-        continue-on-error: true
         shell: bash
         run: |
-          npx playwright test tests/five-day.spec.ts | tee reports/five-day-report.txt
+          set +e
+          npx playwright test tests/five-day.spec.ts 2>&1 | tee reports/five-day-report.txt
+          exit_code=${PIPESTATUS[0]}
+          echo "five-day=$exit_code" >> reports/test-status.txt
+          exit 0
 
       - name: Run Rainfall performance test
-        continue-on-error: true
         shell: bash
         run: |
-          npx playwright test tests/rainfall.spec.ts | tee reports/rainfall-report.txt
+          set +e
+          npx playwright test tests/rainfall.spec.ts 2>&1 | tee reports/rainfall-report.txt
+          exit_code=${PIPESTATUS[0]}
+          echo "rainfall=$exit_code" >> reports/test-status.txt
+          exit 0
 
       - name: Run Temperature performance test
-        continue-on-error: true
         shell: bash
         run: |
-          npx playwright test tests/temperature.spec.ts | tee reports/temperature-report.txt
+          set +e
+          npx playwright test tests/temperature.spec.ts 2>&1 | tee reports/temperature-report.txt
+          exit_code=${PIPESTATUS[0]}
+          echo "temperature=$exit_code" >> reports/test-status.txt
+          exit 0
 
       - name: Run Weather Province performance test
-        continue-on-error: true
         shell: bash
         run: |
-          npx playwright test tests/weather_province.spec.ts | tee reports/weather_province-report.txt
+          set +e
+          npx playwright test tests/weather_province.spec.ts 2>&1 | tee reports/weather_province-report.txt
+          exit_code=${PIPESTATUS[0]}
+          echo "weather_province=$exit_code" >> reports/test-status.txt
+          exit 0
 
       - name: Create Excel performance report
         if: always()
@@ -390,3 +412,157 @@ jobs:
         with:
           name: performance-screenshots
           path: reports/screenshots
+
+      - name: Send summary to Microsoft Teams
+        if: always()
+        shell: bash
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          import urllib.request
+
+          webhook = os.environ.get("TEAMS_WEBHOOK_URL")
+
+          if not webhook:
+              raise Exception("Missing TEAMS_WEBHOOK_URL secret")
+
+          now = datetime.now(
+              ZoneInfo("Asia/Bangkok")
+          ).strftime("%d/%m/%Y %H:%M:%S")
+
+          files = [
+              ("home", "MainPage"),
+              ("alert_history", "DisasterAlertHistory"),
+              ("danger", "DangerSituation"),
+              ("five-day", "wrf5Day"),
+              ("rainfall", "CumulativeRainfall"),
+              ("temperature", "wrf24hr"),
+              ("weather_province", "WeatherByProvincePage"),
+          ]
+
+          summary_lines = []
+
+          for test_name, display_name in files:
+              report_path = f"reports/{test_name}-report.txt"
+
+              if not os.path.exists(report_path):
+                  continue
+
+              with open(report_path, "r", encoding="utf-8") as f:
+                  lines = f.readlines()
+
+              success = ""
+              failed = ""
+              average = ""
+              median = ""
+              min_time = ""
+              max_time = ""
+
+              for line in lines:
+                  text = line.strip()
+
+                  if (
+                      text.startswith("Success Runs")
+                      or text.startswith("Success Pages")
+                      or text.startswith("Success Contexts")
+                  ):
+                      success = text.split(":", 1)[1].strip()
+
+                  if (
+                      text.startswith("Failed Runs")
+                      or text.startswith("Failed Pages")
+                      or text.startswith("Failed Contexts")
+                  ):
+                      failed = text.split(":", 1)[1].strip()
+
+                  if text.startswith("Average Time"):
+                      average = text.split(":", 1)[1].strip()
+
+                  if text.startswith("Median Time"):
+                      median = text.split(":", 1)[1].strip()
+
+                  if text.startswith("Min Time"):
+                      min_time = text.split(":", 1)[1].strip()
+
+                  if text.startswith("Max Time"):
+                      max_time = text.split(":", 1)[1].strip()
+
+              summary_lines.append(
+                  f"""• {display_name}
+          Success: {success}
+          Failed: {failed}
+          Avg: {average}
+          Median: {median}
+          Min: {min_time}
+          Max: {max_time}"""
+              )
+
+          message = "\n\n".join(summary_lines)
+
+          payload = {
+              "@type": "MessageCard",
+              "@context": "http://schema.org/extensions",
+              "summary": "Performance Test Report",
+              "themeColor": "0076D7",
+              "title": "Performance Test Report",
+              "sections": [
+                  {
+                      "activityTitle": f"Run Datetime (TH): {now}",
+                      "text": f"<pre>{message}</pre>"
+                  }
+              ]
+          }
+
+          req = urllib.request.Request(
+              webhook,
+              data=json.dumps(payload).encode("utf-8"),
+              headers={"Content-Type": "application/json"},
+          )
+
+          response = urllib.request.urlopen(req)
+
+          print("Teams response:", response.status)
+          PY
+
+      - name: Check final performance result
+        if: always()
+        shell: bash
+        run: |
+          echo "Checking final performance result..."
+
+          has_failed=0
+
+          echo "Test status:"
+          cat reports/test-status.txt || true
+
+          if awk -F= '$2 != "0" { found=1 } END { exit found ? 0 : 1 }' reports/test-status.txt; then
+            echo "Found failed Playwright test file."
+            has_failed=1
+          fi
+
+          if grep -R -E "Failed (Pages|Runs|Contexts): [1-9][0-9]*/" reports/*.txt; then
+            echo "Found failed performance cases."
+            has_failed=1
+          fi
+
+          if grep -R -E "Performance test failed:" reports/*.txt; then
+            echo "Found performance test failed error."
+            has_failed=1
+          fi
+
+          if grep -R -E "Test timeout of|Error:|[0-9]+ failed" reports/*.txt; then
+            echo "Found Playwright error or timeout."
+            has_failed=1
+          fi
+
+          if [ "$has_failed" -eq 1 ]; then
+            echo "Final result: FAILED"
+            exit 1
+          fi
+
+          echo "Final result: PASSED"
