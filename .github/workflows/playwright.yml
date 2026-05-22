@@ -2,7 +2,7 @@ name: Performance Test
 
 on:
   schedule:
-    - cron: "11 0 * * *" # 07:11 ไทย
+    - cron: "11 23 * * *" # 06:11 ไทย
     - cron: "32 8 * * *" # 15:32 ไทย
   workflow_dispatch:
 
@@ -497,14 +497,14 @@ jobs:
                           max_time = text.split(":", 1)[1].strip()
 
                       error_match = re.match(
-                          r"(Run \d+.*?|Instance \d+|Context \d+): (.*?) \|",
+                          r"^(Run \d+(?: \| [^:]+)*|Instance \d+|Context \d+): (.*?)(?: \|.*)?$",
                           text,
                       )
 
-                      if error_match:
+                      if error_match and "โหลด" in error_match.group(2):
                           error_summary.append(
                               f"{error_match.group(1)}: {error_match.group(2)}"
-                          )
+                      )
 
               error_text = "No Errors"
 
