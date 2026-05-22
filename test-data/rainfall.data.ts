@@ -3,8 +3,8 @@ export const RAINFALL_PERFORMANCE_DATA = {
   ROOT_URL: "https://dev-ndwc.azurewebsites.net",
   PATH: "/kioskClient/wrf/cumulativeRainfall",
 
-  TOTAL_RUNS: 1,
-  CONCURRENT_CONTEXTS: 5,
+  TOTAL_RUNS: 10,
+  CONCURRENT_CONTEXTS: 20,
 
   TEST_TIMEOUT: 1800000,
   NAVIGATION_TIMEOUT: 120000,
