@@ -34,7 +34,7 @@ jobs:
         shell: bash
         run: |
           echo "RUN_DATE=$(TZ=Asia/Bangkok date +'%Y-%m-%d')" >> $GITHUB_ENV
-          echo "RUN_START_TIME_ONLY=$(TZ=Asia/Bangkok date +'+%d/%m/%Y %H:%M:%S')" >> $GITHUB_ENV
+          echo "RUN_START_TIME_ONLY=$(TZ=Asia/Bangkok date +'%d/%m/%Y %H:%M:%S')" >> $GITHUB_ENV
 
       - name: Prepare report folders
         shell: bash
@@ -161,75 +161,39 @@ jobs:
 
           def parse_success_line(text):
               patterns = [
-                  (r"Run ที่ (\d+): ([\d.]+) s", "run"),
-                  (r"Run (\d+) \| Province ([^:]+): ([\d.]+) s", "target"),
-                  (r"Run (\d+) \| Geocode ([^:]+): ([\d.]+) s", "target"),
-                  (r"Run (\d+) \| Context ([^:]+): ([\d.]+) s", "context"),
-                  (r"Run (\d+) \| Instance ([^:]+): ([\d.]+) s", "instance"),
-                  (r"Instance (\d+): ([\d.]+) s", "single_instance"),
+                  r"Run ที่ (\d+): ([\d.]+) s",
+                  r"Run (\d+) \| (.+): ([\d.]+) s",
+                  r"Instance (\d+): ([\d.]+) s",
               ]
 
-              for pattern, kind in patterns:
+              for pattern in patterns:
                   match = re.match(pattern, text)
                   if match:
-                      if kind == "run":
+                      if pattern == patterns[0]:
                           return match.group(1), "", match.group(2)
-                      if kind == "target":
+                      if pattern == patterns[1]:
                           return match.group(1), match.group(2), match.group(3)
-                      if kind == "context":
-                          return match.group(1), f"Context {match.group(2)}", match.group(3)
-                      if kind == "instance":
-                          return match.group(1), f"Instance {match.group(2)}", match.group(3)
-                      if kind == "single_instance":
+                      if pattern == patterns[2]:
                           return "1", f"Instance {match.group(1)}", match.group(2)
 
               return None
 
           def parse_failed_line(text):
               patterns = [
-                  (r"Run ที่ (\d+): โหลดไม่สำเร็จ", "run"),
-                  (r"Run (\d+) \| Province ([^:]+): โหลดไม่สำเร็จ", "target"),
-                  (r"Run (\d+) \| Geocode ([^:]+): โหลดไม่สำเร็จ", "target"),
-                  (r"Run (\d+) \| Context ([^:]+): โหลดไม่สำเร็จ", "context"),
-                  (r"Run (\d+) \| Instance ([^:]+): โหลดไม่สำเร็จ", "instance"),
-                  (r"Instance ([^:]+): โหลดไม่สำเร็จ", "single_instance"),
+                  r"Run ที่ (\d+): โหลดไม่สำเร็จ",
+                  r"Run (\d+) \| (.+): โหลดไม่สำเร็จ",
+                  r"Instance ([^:]+): โหลดไม่สำเร็จ",
               ]
 
-              for pattern, kind in patterns:
+              for pattern in patterns:
                   match = re.match(pattern, text)
                   if match:
-                      if kind == "run":
+                      if pattern == patterns[0]:
                           return match.group(1), ""
-                      if kind == "target":
+                      if pattern == patterns[1]:
                           return match.group(1), match.group(2)
-                      if kind == "context":
-                          return match.group(1), f"Context {match.group(2)}"
-                      if kind == "instance":
-                          return match.group(1), f"Instance {match.group(2)}"
-                      if kind == "single_instance":
+                      if pattern == patterns[2]:
                           return "1", f"Instance {match.group(1)}"
-
-              return None
-
-          def parse_error_summary(text):
-              if re.search(r": [\d.]+ s$", text):
-                  return None
-
-              match = re.match(
-                  r"^(Run \d+(?: \| [^:]+)*|Instance \d+|Context \d+): (.*?) \| (.*)$",
-                  text,
-              )
-
-              if match:
-                  return match.group(1), match.group(2), match.group(3)
-
-              match = re.match(
-                  r"^(Run \d+(?: \| [^:]+)*|Instance \d+|Context \d+): (.*)$",
-                  text,
-              )
-
-              if match and "โหลด" in match.group(2):
-                  return match.group(1), "ERROR", match.group(2)
 
               return None
 
@@ -245,7 +209,7 @@ jobs:
               report_path = f"reports/{test_name}-report.txt"
 
               rows = []
-              error_map = {}
+              pending_failed_row = None
 
               success_count = ""
               failed_count = ""
@@ -266,7 +230,6 @@ jobs:
 
                   success_result = parse_success_line(text)
                   failed_result = parse_failed_line(text)
-                  error_result = parse_error_summary(text)
 
                   if success_result:
                       run_no, target, load_time = success_result
@@ -277,23 +240,26 @@ jobs:
                           "error_type": "",
                           "error_detail": "",
                       })
+                      pending_failed_row = None
 
                   elif failed_result:
                       run_no, target = failed_result
-                      rows.append({
+                      row = {
                           "run_no": run_no,
                           "target": target,
                           "load_time": "FAILED",
                           "error_type": "",
                           "error_detail": "",
-                      })
-
-                  if error_result:
-                      key, error_type, error_detail = error_result
-                      error_map[key] = {
-                          "error_type": error_type,
-                          "error_detail": error_detail,
                       }
+                      rows.append(row)
+                      pending_failed_row = row
+
+                  elif pending_failed_row and text.startswith("Error Type:"):
+                      pending_failed_row["error_type"] = text.replace("Error Type:", "", 1).strip()
+
+                  elif pending_failed_row and text.startswith("Error Detail:"):
+                      pending_failed_row["error_detail"] = text.replace("Error Detail:", "", 1).strip()
+                      pending_failed_row = None
 
                   if (
                       text.startswith("Success Runs")
@@ -325,18 +291,6 @@ jobs:
                       max_time = text.split(":", 1)[1].replace("s", "").strip()
 
               for row in rows:
-                  error_keys = [
-                      f'Run {row["run_no"]} | {row["target"]}',
-                      f'Run {row["run_no"]}',
-                      row["target"],
-                  ]
-
-                  for key in error_keys:
-                      if key in error_map:
-                          row["error_type"] = error_map[key]["error_type"]
-                          row["error_detail"] = error_map[key]["error_detail"]
-                          break
-
                   ws.append([
                       run_date,
                       current_time,
@@ -380,8 +334,9 @@ jobs:
                   cell.font = bold_font
 
               for col in range(1, len(headers) + 1):
-                  ws.column_dimensions[get_column_letter(col)].width = 25
+                  ws.column_dimensions[get_column_letter(col)].width = 30
 
+              ws.column_dimensions["N"].width = 80
               ws.freeze_panes = "A2"
 
           filename = datetime.now(ZoneInfo("Asia/Bangkok")).strftime(
@@ -430,7 +385,7 @@ jobs:
           import os
           import re
 
-          run_start_time = os.environ.get("RUN_START_TIME", os.environ.get("RUN_START_TIME_ONLY", "N/A"))
+          run_start_time = os.environ.get("RUN_START_TIME_ONLY", "N/A")
           run_end_time = os.environ.get("RUN_END_TIME", "N/A")
           status = os.environ.get("STATUS", "N/A")
           run_url = os.environ.get("RUN_URL", "N/A")
@@ -459,6 +414,7 @@ jobs:
               min_time = "N/A"
               max_time = "N/A"
               error_summary = []
+              pending_error = None
 
               if os.path.exists(report_path):
                   with open(report_path, "r", encoding="utf-8") as f:
@@ -496,15 +452,18 @@ jobs:
                       if text.startswith("Max Time"):
                           max_time = text.split(":", 1)[1].strip()
 
-                      error_match = re.match(
-                          r"^(Run \d+(?: \| [^:]+)*|Instance \d+|Context \d+): (.*?)(?: \|.*)?$",
+                      failed_match = re.match(
+                          r"^(Run \d+(?: \| [^:]+)*|Instance [^:]+): โหลดไม่สำเร็จ$",
                           text,
                       )
 
-                      if error_match and "โหลด" in error_match.group(2):
-                          error_summary.append(
-                              f"{error_match.group(1)}: {error_match.group(2)}"
-                      )
+                      if failed_match:
+                          pending_error = failed_match.group(1)
+
+                      elif pending_error and text.startswith("Error Type:"):
+                          error_type = text.replace("Error Type:", "", 1).strip()
+                          error_summary.append(f"{pending_error}: {error_type}")
+                          pending_error = None
 
               error_text = "No Errors"
 
@@ -572,10 +531,12 @@ jobs:
               json.dump(payload, f, ensure_ascii=False)
 
           PY
+
           curl -X POST \
             -H "Content-Type: application/json" \
             -d @teams-payload.json \
             "$TEAMS_WEBHOOK_URL"
+
       - name: Check final performance result
         if: always()
         shell: bash
