@@ -37,6 +37,7 @@ jobs:
         run: 
           node -v
           npm -v
+          npx playwright install chromium --with-deps
           npx playwright --version
           DEBUG=pw:install npx playwright install --with-deps
 
