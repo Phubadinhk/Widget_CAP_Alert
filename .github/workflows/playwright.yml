@@ -22,7 +22,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: 22
 
       - name: Install dependencies
         run: npm ci
@@ -40,6 +40,20 @@ jobs:
           npx playwright install chromium --with-deps
           npx playwright --version
           DEBUG=pw:install npx playwright install --with-deps
+    
+      - name: Debug Playwright
+        run: |
+          node -v
+          npm -v
+          npx playwright --version
+
+          DEBUG=pw:install npx playwright install chromium --with-deps || true
+
+          echo "===== Browser Cache ====="
+          find ~/.cache/ms-playwright -type f | head -100
+
+          echo "===== Disk ====="
+          df -h
 
       - name: Set run datetime
         shell: bash
