@@ -69,11 +69,12 @@ jobs:
           : > reports/test-status.txt
 
       - name: Run Playlist performance tests
-        run: 
+        shell: bash
+        run: |
           set +e
-          npx playwright test tests/home.spec.ts 2>&1 | tee reports/home-report.txt
+          npx playwright test tests/playlist.spec.ts 2>&1 | tee reports/playlist-report.txt
           exit_code=${PIPESTATUS[0]}
-          echo "home=$exit_code" >> reports/test-status.txt
+          echo "playlist=$exit_code" >> reports/test-status.txt
           exit 0
 
       - name: Run Home performance test
