@@ -2,8 +2,8 @@ name: Performance Test
 
 on:
   schedule:
-    - cron: "11 23 * * *" # 06:11 ไทย
-    - cron: "32 8 * * *" # 15:32 ไทย
+    - cron: "0 21 * * *" # 04:11 ไทย
+    - cron: "0 13 * * *" # 20:11 ไทย
   workflow_dispatch:
 
 jobs:
@@ -77,67 +77,67 @@ jobs:
           echo "playlist=$exit_code" >> reports/test-status.txt
           exit 0
 
-      - name: Run Home performance test
+      - name: Run MainPage performance test
         shell: bash
         run: |
           set +e
-          npx playwright test tests/home.spec.ts 2>&1 | tee reports/home-report.txt
+          npx playwright test tests/mainpage.spec.ts 2>&1 | tee reports/mainpage-report.txt
           exit_code=${PIPESTATUS[0]}
-          echo "home=$exit_code" >> reports/test-status.txt
+          echo "mainpage=$exit_code" >> reports/test-status.txt
           exit 0
 
-      - name: Run Alert History performance test
+      - name: Run DisasterAlertHistory performance test
         shell: bash
         run: |
           set +e
-          npx playwright test tests/alert_history.spec.ts 2>&1 | tee reports/alert_history-report.txt
+          npx playwright test tests/disasteralerthistory.spec.ts 2>&1 | tee reports/disasteralerthistory-report.txt
           exit_code=${PIPESTATUS[0]}
-          echo "alert_history=$exit_code" >> reports/test-status.txt
+          echo "disasteralerthistory=$exit_code" >> reports/test-status.txt
           exit 0
 
-      - name: Run Danger performance test
+      - name: Run DangerSituation performance test
         shell: bash
         run: |
           set +e
-          npx playwright test tests/danger.spec.ts 2>&1 | tee reports/danger-report.txt
+          npx playwright test tests/DangerSituation.spec.ts 2>&1 | tee reports/DangerSituation-report.txt
           exit_code=${PIPESTATUS[0]}
-          echo "danger=$exit_code" >> reports/test-status.txt
+          echo "DangerSituation=$exit_code" >> reports/test-status.txt
           exit 0
 
-      - name: Run Five Day performance test
+      - name: Run wrf5Day performance test
         shell: bash
         run: |
           set +e
-          npx playwright test tests/five-day.spec.ts 2>&1 | tee reports/five-day-report.txt
+          npx playwright test tests/wrf5Day.spec.ts 2>&1 | tee reports/wrf5Day-report.txt
           exit_code=${PIPESTATUS[0]}
-          echo "five-day=$exit_code" >> reports/test-status.txt
+          echo "wrf5Day=$exit_code" >> reports/test-status.txt
           exit 0
 
-      - name: Run Rainfall performance test
+      - name: Run CumulativeRainfall performance test
         shell: bash
         run: |
           set +e
-          npx playwright test tests/rainfall.spec.ts 2>&1 | tee reports/rainfall-report.txt
+          npx playwright test tests/cumulativeRainfall.spec.ts 2>&1 | tee reports/cumulativeRainfall-report.txt
           exit_code=${PIPESTATUS[0]}
-          echo "rainfall=$exit_code" >> reports/test-status.txt
+          echo "cumulativeRainfall=$exit_code" >> reports/test-status.txt
           exit 0
 
-      - name: Run Temperature performance test
+      - name: Run wrf24hr performance test
         shell: bash
         run: |
           set +e
-          npx playwright test tests/temperature.spec.ts 2>&1 | tee reports/temperature-report.txt
+          npx playwright test tests/wrf24hr.spec.ts 2>&1 | tee reports/wrf24hr-report.txt
           exit_code=${PIPESTATUS[0]}
-          echo "temperature=$exit_code" >> reports/test-status.txt
+          echo "wrf24hr=$exit_code" >> reports/test-status.txt
           exit 0
 
       - name: Run Weather Province performance test
         shell: bash
         run: |
           set +e
-          npx playwright test tests/weather_province.spec.ts 2>&1 | tee reports/weather_province-report.txt
+          npx playwright test tests/weatherbyprovincepage.spec.ts 2>&1 | tee reports/weatherbyprovincepage-report.txt
           exit_code=${PIPESTATUS[0]}
-          echo "weather_province=$exit_code" >> reports/test-status.txt
+          echo "weatherbyprovincepage=$exit_code" >> reports/test-status.txt
           exit 0
 
       - name: Create Excel performance report
@@ -160,13 +160,13 @@ jobs:
 
           files = [
               ("playlist", "Playlist"),
-              ("home", "MainPage"),
-              ("alert_history", "DisasterAlertHistory"),
-              ("danger", "DangerSituation"),
-              ("five-day", "wrf5Day"),
-              ("rainfall", "CumulativeRainfall"),
-              ("temperature", "wrf24hr"),
-              ("weather_province", "WeatherByProvincePage"),
+              ("mainpage", "MainPage"),
+              ("disasteralerthistory", "DisasterAlertHistory"),
+              ("DangerSituation", "DangerSituation"),
+              ("wrf5Day", "wrf5Day"),
+              ("cumulativeRainfall", "CumulativeRainfall"),
+              ("wrf24hr", "wrf24hr"),
+              ("weatherbyprovincepage", "WeatherByProvincePage"),
           ]
 
           wb = Workbook()

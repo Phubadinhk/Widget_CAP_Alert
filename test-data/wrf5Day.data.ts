@@ -1,7 +1,7 @@
-export const WEATHER_PERFORMANCE_DATA = {
-  BASE_URL: "https://dev-ndwc.azurewebsites.net",
+export const FIVE_DAY_PERFORMANCE_DATA = {
   ROOT_URL: "https://dev-ndwc.azurewebsites.net",
-  PATH_TEMPLATE: "/kioskclient/weatherbyprovincepage/{provinceId}",
+  PATH_TEMPLATE: "/kioskClient/wrf/wrf5Day/{provinceId}",
+
   TOTAL_RUNS: 1,
   TEST_TIMEOUT: 1800000,
   NAVIGATION_TIMEOUT: 120000,

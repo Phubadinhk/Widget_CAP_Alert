@@ -1,9 +1,7 @@
-import dotenv from "dotenv";
-dotenv.config();
-
 import { test } from "@playwright/test";
-import { RAINFALL_PERFORMANCE_DATA } from "../test-data/rainfall.data";
-import { RainfallPerformancePage } from "../page-object/rainfall";
+import { RAINFALL_PERFORMANCE_DATA } from "../test-data/cumulativeRainfall.data";
+import { RainfallPerformancePage } from "../page-object/cumulativeRainfall";
+import { ENV } from "../config/environment";
 
 type PerformanceSuccessResult = {
   success: true;
@@ -27,15 +25,13 @@ test("Performance cumulativeRainfall Page - 20 Contexts", async () => {
   const finishTimes: number[] = [];
   const errorLogs: string[] = [];
 
-  const token = process.env.KIOSK_TOKEN?.trim();
+  const token = ENV.KIOSK_TOKEN.trim();
 
   if (!token) {
     throw new Error("Missing KIOSK_TOKEN in .env");
   }
 
-  const fullUrl =
-    `${RAINFALL_PERFORMANCE_DATA.BASE_URL}` +
-    `${RAINFALL_PERFORMANCE_DATA.PATH}/${token}`;
+  const fullUrl = `${ENV.V3_URL}${RAINFALL_PERFORMANCE_DATA.PATH_TEMPLATE}/${token}`;
 
   console.log("Performance Result CumulativeRainfall Page");
   console.log(
@@ -58,12 +54,12 @@ test("Performance cumulativeRainfall Page - 20 Contexts", async () => {
           try {
             const finishTimeSec =
               await rainfallPage.gotoRootThenTargetAndGetNetworkFinishTimeByNewContext(
-                RAINFALL_PERFORMANCE_DATA.ROOT_URL,
+                ENV.V3_URL,
                 fullUrl,
                 RAINFALL_PERFORMANCE_DATA.WAIT_UNTIL,
                 RAINFALL_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,
                 RAINFALL_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
-                `reports/screenshots/Rainfall/run-${run}-Context-${instance}.png`,
+                `reports/screenshots/CumulativeRainfall/run-${run}-Context-${instance}.png`,
               );
 
             return {

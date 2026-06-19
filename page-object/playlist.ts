@@ -80,6 +80,24 @@ export class PlaylistPerformancePage {
       }
 
       return finishTimeMs / 1000;
+    } catch (error) {
+      if (screenshotPath) {
+        try {
+          await page.screenshot({
+            path: screenshotPath.replace(".png", "-FAIL.png"),
+            fullPage: true,
+            timeout: 10000,
+          });
+        } catch (screenshotError) {
+          console.error("Capture fail screenshot error:", screenshotError);
+        }
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+
+      throw new Error(
+        `PERFORMANCE_PAGE_LOAD_ERROR: Error ที่หน้าทดสอบ Performance | URL: ${targetUrl} | ${message}`,
+      );
     } finally {
       await page.close();
       await context.close();

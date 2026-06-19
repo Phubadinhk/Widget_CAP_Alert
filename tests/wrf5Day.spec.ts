@@ -1,99 +1,82 @@
 import { test } from "@playwright/test";
-import { HOME_PERFORMANCE_DATA } from "../test-data/home.data";
-import { HomePerformancePage } from "../page-object/home";
-
+import { FIVE_DAY_PERFORMANCE_DATA } from "../test-data/wrf5Day.data";
+import { FiveDayPerformancePage } from "../page-object/wrf5Day";
+import { ENV } from "../config/environment";
 type PerformanceSuccessResult = {
   success: true;
   provinceId: number;
-  stationId: number;
   finishTimeSec: number;
 };
 
 type PerformanceFailResult = {
   success: false;
   provinceId: number;
-  stationId: number;
   message: string;
 };
 
 type PerformanceResult = PerformanceSuccessResult | PerformanceFailResult;
 
-test("Performance Main Page - 20 contexts concurrent", async () => {
-  test.setTimeout(HOME_PERFORMANCE_DATA.TEST_TIMEOUT);
+test("Performance wrf5Day Page - Concurrent", async () => {
+  test.setTimeout(FIVE_DAY_PERFORMANCE_DATA.TEST_TIMEOUT);
 
   const finishTimes: number[] = [];
   const errorLogs: string[] = [];
 
-  const token = process.env.KIOSK_TOKEN?.trim();
+  const token = ENV.KIOSK_TOKEN.trim();
 
   if (!token) {
     throw new Error("Missing KIOSK_TOKEN in .env");
   }
 
-  if (
-    HOME_PERFORMANCE_DATA.PROVINCE_IDS.length !==
-    HOME_PERFORMANCE_DATA.STATION_IDS.length
-  ) {
-    throw new Error(
-      "PROVINCE_IDS และ STATION_IDS ต้องมีจำนวนเท่ากัน",
-    );
-  }
-
-  console.log("Performance Result Main Page");
+  console.log("Performance Result wrf5Day Page");
   console.log(
-    `1 Run = 1 Browser | เปิดพร้อมกัน ${HOME_PERFORMANCE_DATA.PROVINCE_IDS.length} Contexts`,
+    `1 Run = 1 Browser | เปิดพร้อมกัน ${FIVE_DAY_PERFORMANCE_DATA.PROVINCE_IDS.length} Contexts`,
   );
 
-  for (let run = 1; run <= HOME_PERFORMANCE_DATA.TOTAL_RUNS; run++) {
+  for (let run = 1; run <= FIVE_DAY_PERFORMANCE_DATA.TOTAL_RUNS; run++) {
     console.log(`================ Run ${run} ================`);
 
-    const homePage = new HomePerformancePage();
+    const fiveDayPage = new FiveDayPerformancePage();
 
     try {
-      await homePage.openBrowser();
+      await fiveDayPage.openBrowser();
 
       const tasks: Promise<PerformanceResult>[] =
-        HOME_PERFORMANCE_DATA.PROVINCE_IDS.map(
-          async (provinceId, index) => {
-            const stationId =
-              HOME_PERFORMANCE_DATA.STATION_IDS[index];
+        FIVE_DAY_PERFORMANCE_DATA.PROVINCE_IDS.map(async (provinceId) => {
+          try {
+            const path = FIVE_DAY_PERFORMANCE_DATA.PATH_TEMPLATE.replace(
+              "{provinceId}",
+              String(provinceId),
+            );
 
-            try {
-              const path = HOME_PERFORMANCE_DATA.PATH_TEMPLATE
-                .replace("{provinceId}", String(provinceId))
-                .replace("{stationId}", String(stationId));
+            const fullUrl = `${ENV.V3_URL}${path}/${token}`;
 
-              const fullUrl =
-                `${HOME_PERFORMANCE_DATA.BASE_URL}` +
-                `${path}/${token}`;
+            const finishTimeSec =
+              await fiveDayPage.gotoRootThenTargetAndGetNetworkFinishTimeByNewContext(
+                ENV.V3_URL,
+                fullUrl,
+                FIVE_DAY_PERFORMANCE_DATA.WAIT_UNTIL,
+                FIVE_DAY_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,
+                FIVE_DAY_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
+                `reports/screenshots/wrf5Day/run-${run}-province-${provinceId}.png`,
+              );
 
-              const finishTimeSec =
-                await homePage.gotoAndGetNetworkFinishTimeByNewContext(
-                  fullUrl,
-                  HOME_PERFORMANCE_DATA.WAIT_UNTIL,
-                  HOME_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
-                  `reports/screenshots/MainPage/run-${run}-province-${provinceId}-station-${stationId}.png`,
-                );
+            return {
+              success: true as const,
+              provinceId,
+              finishTimeSec,
+            };
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : String(error);
 
-              return {
-                success: true as const,
-                provinceId,
-                stationId,
-                finishTimeSec,
-              };
-            } catch (error) {
-              const message =
-                error instanceof Error ? error.message : String(error);
-
-              return {
-                success: false as const,
-                provinceId,
-                stationId,
-                message,
-              };
-            }
-          },
-        );
+            return {
+              success: false as const,
+              provinceId,
+              message,
+            };
+          }
+        });
 
       const results = await Promise.all(tasks);
 
@@ -102,7 +85,7 @@ test("Performance Main Page - 20 contexts concurrent", async () => {
           finishTimes.push(result.finishTimeSec);
 
           console.log(
-            `Run ${run} | Province ${result.provinceId} | Station ${result.stationId}: ${result.finishTimeSec.toFixed(2)} s`,
+            `Run ${run} | Province ${result.provinceId}: ${result.finishTimeSec.toFixed(2)} s`,
           );
         } else {
           let errorType = "UNKNOWN_ERROR";
@@ -116,6 +99,8 @@ test("Performance Main Page - 20 contexts concurrent", async () => {
             errorType = "ลิงก์เว็บผิด หรือ Domain ไม่ถูกต้อง";
           } else if (result.message.includes("Test timeout")) {
             errorType = "เวลารวมของ Test หมด";
+          } else if (result.message.includes("NORMAL_PAGE_LOAD_ERROR")) {
+            errorType = "โหลดหน้าเว็บปกติไม่สำเร็จ ไม่ใช่ Performance";
           } else if (result.message.includes("PERFORMANCE_PAGE_LOAD_ERROR")) {
             errorType = "โหลดหน้าทดสอบไม่สำเร็จ";
           } else if (result.message.includes("BROWSER_INITIALIZE_ERROR")) {
@@ -123,24 +108,24 @@ test("Performance Main Page - 20 contexts concurrent", async () => {
           }
 
           console.error(
-            `Run ${run} | Province ${result.provinceId} | Station ${result.stationId}: โหลดไม่สำเร็จ`,
+            `Run ${run} | Province ${result.provinceId}: โหลดไม่สำเร็จ`,
           );
           console.error(`Error Type: ${errorType}`);
           console.error(`Error Detail: ${result.message}`);
 
           errorLogs.push(
-            `Run ${run} | Province ${result.provinceId} | Station ${result.stationId}: ${errorType} | ${result.message}`,
+            `Run ${run} | Province ${result.provinceId}: ${errorType} | ${result.message}`,
           );
         }
       });
     } finally {
-      await homePage.close();
+      await fiveDayPage.close();
     }
   }
 
   const totalExpected =
-    HOME_PERFORMANCE_DATA.TOTAL_RUNS *
-    HOME_PERFORMANCE_DATA.PROVINCE_IDS.length;
+    FIVE_DAY_PERFORMANCE_DATA.TOTAL_RUNS *
+    FIVE_DAY_PERFORMANCE_DATA.PROVINCE_IDS.length;
 
   const totalTime = finishTimes.reduce((sum, time) => sum + time, 0);
 

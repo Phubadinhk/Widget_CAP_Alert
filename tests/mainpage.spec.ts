@@ -1,99 +1,93 @@
-import dotenv from "dotenv";
-dotenv.config();
-
 import { test } from "@playwright/test";
-import { ALERT_HISTORY_PERFORMANCE_DATA } from "../test-data/alert_history.data";
-import { AlertHistoryPerformancePage } from "../page-object/alert_history";
-
+import { HOME_PERFORMANCE_DATA } from "../test-data/mainpage.data";
+import { HomePerformancePage } from "../page-object/mainpage";
+import { ENV } from "../config/environment";
 type PerformanceSuccessResult = {
   success: true;
-  run: number;
-  instance: number;
-  geocode: string;
+  provinceId: number;
+  stationId: number;
   finishTimeSec: number;
 };
 
 type PerformanceFailResult = {
   success: false;
-  run: number;
-  instance: number;
-  geocode: string;
+  provinceId: number;
+  stationId: number;
   message: string;
 };
 
-type PerformanceResult =
-  | PerformanceSuccessResult
-  | PerformanceFailResult;
+type PerformanceResult = PerformanceSuccessResult | PerformanceFailResult;
 
-test("Performance DisasterAlertHistory Page - concurrent", async () => {
-  test.setTimeout(ALERT_HISTORY_PERFORMANCE_DATA.TEST_TIMEOUT);
+test("Performance Main Page - 20 contexts concurrent", async () => {
+  test.setTimeout(HOME_PERFORMANCE_DATA.TEST_TIMEOUT);
 
   const finishTimes: number[] = [];
   const errorLogs: string[] = [];
 
-  const token = process.env.KIOSK_TOKEN?.trim();
+  const token = ENV.KIOSK_TOKEN.trim();
 
   if (!token) {
     throw new Error("Missing KIOSK_TOKEN in .env");
   }
 
-  console.log("Performance Result DisasterAlertHistory Page");
+  if (
+    HOME_PERFORMANCE_DATA.PROVINCE_IDS.length !==
+    HOME_PERFORMANCE_DATA.STATION_IDS.length
+  ) {
+    throw new Error("PROVINCE_IDS และ STATION_IDS ต้องมีจำนวนเท่ากัน");
+  }
+
+  console.log("Performance Result Main Page");
   console.log(
-    `1 Run = 1 Browser | เปิดพร้อมกัน ${ALERT_HISTORY_PERFORMANCE_DATA.GEOCODE.length} Contexts`,
+    `1 Run = 1 Browser | เปิดพร้อมกัน ${HOME_PERFORMANCE_DATA.PROVINCE_IDS.length} Contexts`,
   );
 
-  for (let run = 1; run <= ALERT_HISTORY_PERFORMANCE_DATA.TOTAL_RUNS; run++) {
+  for (let run = 1; run <= HOME_PERFORMANCE_DATA.TOTAL_RUNS; run++) {
     console.log(`================ Run ${run} ================`);
 
-    const alertHistoryPage = new AlertHistoryPerformancePage();
+    const homePage = new HomePerformancePage();
 
     try {
-      await alertHistoryPage.openBrowser();
+      await homePage.openBrowser();
 
       const tasks: Promise<PerformanceResult>[] =
-        ALERT_HISTORY_PERFORMANCE_DATA.GEOCODE.map(
-          async (geocode, index) => {
-            const instance = index + 1;
+        HOME_PERFORMANCE_DATA.PROVINCE_IDS.map(async (provinceId, index) => {
+          const stationId = HOME_PERFORMANCE_DATA.STATION_IDS[index];
 
-            try {
-              const path =
-                ALERT_HISTORY_PERFORMANCE_DATA.PATH_TEMPLATE.replace(
-                  "{geocode}",
-                  geocode,
-                );
+          try {
+            const path = HOME_PERFORMANCE_DATA.PATH_TEMPLATE.replace(
+              "{provinceId}",
+              String(provinceId),
+            ).replace("{stationId}", String(stationId));
 
-              const fullUrl =
-                `${ALERT_HISTORY_PERFORMANCE_DATA.BASE_URL}` +
-                `${path}/${token}`;
+            const fullUrl = `${ENV.V3_URL}${path}/${token}`;
 
-              const finishTimeSec =
-                await alertHistoryPage.gotoRootThenTargetAndGetNetworkFinishTimeByNewContext(
-                  ALERT_HISTORY_PERFORMANCE_DATA.ROOT_URL,
-                  fullUrl,
-                  ALERT_HISTORY_PERFORMANCE_DATA.WAIT_UNTIL,
-                  ALERT_HISTORY_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,
-                  ALERT_HISTORY_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
-                  `reports/screenshots/AlertHistory/run-${run}-geocode-${geocode}.png`,
-                );
+            const finishTimeSec =
+              await homePage.gotoAndGetNetworkFinishTimeByNewContext(
+                fullUrl,
+                HOME_PERFORMANCE_DATA.WAIT_UNTIL,
+                HOME_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
+                `reports/screenshots/MainPage/run-${run}-province-${provinceId}-station-${stationId}.png`,
+              );
 
-              return {
-                success: true as const,
-                run,
-                instance,
-                geocode,
-                finishTimeSec,
-              };
-            } catch (error) {
-              return {
-                success: false as const,
-                run,
-                instance,
-                geocode,
-                message: error instanceof Error ? error.message : String(error),
-              };
-            }
-          },
-        );
+            return {
+              success: true as const,
+              provinceId,
+              stationId,
+              finishTimeSec,
+            };
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : String(error);
+
+            return {
+              success: false as const,
+              provinceId,
+              stationId,
+              message,
+            };
+          }
+        });
 
       const results = await Promise.all(tasks);
 
@@ -102,7 +96,7 @@ test("Performance DisasterAlertHistory Page - concurrent", async () => {
           finishTimes.push(result.finishTimeSec);
 
           console.log(
-            `Run ${result.run} | Geocode ${result.geocode}: ${result.finishTimeSec.toFixed(2)} s`,
+            `Run ${run} | Province ${result.provinceId} | Station ${result.stationId}: ${result.finishTimeSec.toFixed(2)} s`,
           );
         } else {
           let errorType = "UNKNOWN_ERROR";
@@ -116,8 +110,6 @@ test("Performance DisasterAlertHistory Page - concurrent", async () => {
             errorType = "ลิงก์เว็บผิด หรือ Domain ไม่ถูกต้อง";
           } else if (result.message.includes("Test timeout")) {
             errorType = "เวลารวมของ Test หมด";
-          } else if (result.message.includes("NORMAL_PAGE_LOAD_ERROR")) {
-            errorType = "โหลดหน้าเว็บปกติไม่สำเร็จ ไม่ใช่ Performance";
           } else if (result.message.includes("PERFORMANCE_PAGE_LOAD_ERROR")) {
             errorType = "โหลดหน้าทดสอบไม่สำเร็จ";
           } else if (result.message.includes("BROWSER_INITIALIZE_ERROR")) {
@@ -125,24 +117,24 @@ test("Performance DisasterAlertHistory Page - concurrent", async () => {
           }
 
           console.error(
-            `Run ${result.run} | Geocode ${result.geocode}: โหลดไม่สำเร็จ`,
+            `Run ${run} | Province ${result.provinceId} | Station ${result.stationId}: โหลดไม่สำเร็จ`,
           );
           console.error(`Error Type: ${errorType}`);
           console.error(`Error Detail: ${result.message}`);
 
           errorLogs.push(
-            `Run ${result.run} | Geocode ${result.geocode}: ${errorType} | ${result.message}`,
+            `Run ${run} | Province ${result.provinceId} | Station ${result.stationId}: ${errorType} | ${result.message}`,
           );
         }
       });
     } finally {
-      await alertHistoryPage.close();
+      await homePage.close();
     }
   }
 
   const totalExpected =
-    ALERT_HISTORY_PERFORMANCE_DATA.TOTAL_RUNS *
-    ALERT_HISTORY_PERFORMANCE_DATA.GEOCODE.length;
+    HOME_PERFORMANCE_DATA.TOTAL_RUNS *
+    HOME_PERFORMANCE_DATA.PROVINCE_IDS.length;
 
   const totalTime = finishTimes.reduce((sum, time) => sum + time, 0);
 

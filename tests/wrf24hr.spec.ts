@@ -1,9 +1,7 @@
-import dotenv from "dotenv";
-dotenv.config();
-
 import { test } from "@playwright/test";
-import { FIVE_DAY_PERFORMANCE_DATA } from "../test-data/five-day.data";
-import { FiveDayPerformancePage } from "../page-object/five-day";
+import { TEMPERATURE_PERFORMANCE_DATA } from "../test-data/wrf24hr.data";
+import { TemperaturePerformancePage } from "../page-object/wrf24hr";
+import { ENV } from "../config/environment";
 
 type PerformanceSuccessResult = {
   success: true;
@@ -19,51 +17,51 @@ type PerformanceFailResult = {
 
 type PerformanceResult = PerformanceSuccessResult | PerformanceFailResult;
 
-test("Performance wrf5Day Page - Concurrent", async () => {
-  test.setTimeout(FIVE_DAY_PERFORMANCE_DATA.TEST_TIMEOUT);
+test("Performance wrf24hr Page - Concurrent", async () => {
+  test.setTimeout(TEMPERATURE_PERFORMANCE_DATA.TEST_TIMEOUT);
 
   const finishTimes: number[] = [];
   const errorLogs: string[] = [];
 
-  const token = process.env.KIOSK_TOKEN?.trim();
+  const token = ENV.KIOSK_TOKEN.trim();
 
   if (!token) {
     throw new Error("Missing KIOSK_TOKEN in .env");
   }
 
-  console.log("Performance Result wrf5Day Page");
+  console.log("Performance Result wrf24hr Page");
+
   console.log(
-    `1 Run = 1 Browser | เปิดพร้อมกัน ${FIVE_DAY_PERFORMANCE_DATA.PROVINCE_IDS.length} Contexts`,
+    `1 Run = 1 Browser | เปิดพร้อมกัน ${TEMPERATURE_PERFORMANCE_DATA.PROVINCE_IDS.length} Contexts`,
   );
 
-  for (let run = 1; run <= FIVE_DAY_PERFORMANCE_DATA.TOTAL_RUNS; run++) {
+  for (let run = 1; run <= TEMPERATURE_PERFORMANCE_DATA.TOTAL_RUNS; run++) {
     console.log(`================ Run ${run} ================`);
 
-    const fiveDayPage = new FiveDayPerformancePage();
+    const temperaturePage = new TemperaturePerformancePage();
 
     try {
-      await fiveDayPage.openBrowser();
+      await temperaturePage.openBrowser();
 
       const tasks: Promise<PerformanceResult>[] =
-        FIVE_DAY_PERFORMANCE_DATA.PROVINCE_IDS.map(async (provinceId) => {
+        TEMPERATURE_PERFORMANCE_DATA.PROVINCE_IDS.map(async (provinceId) => {
           try {
-            const path = FIVE_DAY_PERFORMANCE_DATA.PATH_TEMPLATE.replace(
+            const path = TEMPERATURE_PERFORMANCE_DATA.PATH_TEMPLATE.replace(
               "{provinceId}",
               String(provinceId),
             );
 
-            const fullUrl =
-              `${FIVE_DAY_PERFORMANCE_DATA.BASE_URL}` + `${path}/${token}`;
+            const fullUrl = `${ENV.V3_URL}${path}/${token}`;
 
             const finishTimeSec =
-              await fiveDayPage.gotoRootThenTargetAndGetNetworkFinishTimeByNewContext(
-                FIVE_DAY_PERFORMANCE_DATA.ROOT_URL,
+              await temperaturePage.gotoRootThenTargetAndGetNetworkFinishTimeByNewContext(
+                ENV.V3_URL,
                 fullUrl,
-                FIVE_DAY_PERFORMANCE_DATA.WAIT_UNTIL,
-                FIVE_DAY_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,
-                FIVE_DAY_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
-                `reports/screenshots/FiveDay/run-${run}-province-${provinceId}.png`,
-              );
+                TEMPERATURE_PERFORMANCE_DATA.WAIT_UNTIL,
+                TEMPERATURE_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,
+                TEMPERATURE_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
+                `reports/screenshots/wrf24hr/run-${run}-province-${provinceId}.png`,
+              );;
 
             return {
               success: true as const,
@@ -103,8 +101,6 @@ test("Performance wrf5Day Page - Concurrent", async () => {
             errorType = "ลิงก์เว็บผิด หรือ Domain ไม่ถูกต้อง";
           } else if (result.message.includes("Test timeout")) {
             errorType = "เวลารวมของ Test หมด";
-          } else if (result.message.includes("NORMAL_PAGE_LOAD_ERROR")) {
-            errorType = "โหลดหน้าเว็บปกติไม่สำเร็จ ไม่ใช่ Performance";
           } else if (result.message.includes("PERFORMANCE_PAGE_LOAD_ERROR")) {
             errorType = "โหลดหน้าทดสอบไม่สำเร็จ";
           } else if (result.message.includes("BROWSER_INITIALIZE_ERROR")) {
@@ -114,6 +110,7 @@ test("Performance wrf5Day Page - Concurrent", async () => {
           console.error(
             `Run ${run} | Province ${result.provinceId}: โหลดไม่สำเร็จ`,
           );
+
           console.error(`Error Type: ${errorType}`);
           console.error(`Error Detail: ${result.message}`);
 
@@ -123,13 +120,13 @@ test("Performance wrf5Day Page - Concurrent", async () => {
         }
       });
     } finally {
-      await fiveDayPage.close();
+      await temperaturePage.close();
     }
   }
 
   const totalExpected =
-    FIVE_DAY_PERFORMANCE_DATA.TOTAL_RUNS *
-    FIVE_DAY_PERFORMANCE_DATA.PROVINCE_IDS.length;
+    TEMPERATURE_PERFORMANCE_DATA.TOTAL_RUNS *
+    TEMPERATURE_PERFORMANCE_DATA.PROVINCE_IDS.length;
 
   const totalTime = finishTimes.reduce((sum, time) => sum + time, 0);
 
@@ -155,15 +152,23 @@ test("Performance wrf5Day Page - Concurrent", async () => {
     sortedTimes.length > 0 ? sortedTimes[sortedTimes.length - 1] : 0;
 
   console.log("====================================");
+
   console.log(`Success Pages: ${finishTimes.length}/${totalExpected}`);
+
   console.log(`Failed Pages: ${errorLogs.length}/${totalExpected}`);
+
   console.log(`Total Time: ${totalTime.toFixed(2)} s`);
+
   console.log(`Average Time: ${averageTime.toFixed(2)} s`);
+
   console.log(`Median Time: ${medianTime.toFixed(2)} s`);
+
   console.log(`Min Time: ${minTime.toFixed(2)} s`);
+
   console.log(`Max Time: ${maxTime.toFixed(2)} s`);
 
   console.log("====================================");
+
   console.log("Error Summary");
 
   if (errorLogs.length === 0) {

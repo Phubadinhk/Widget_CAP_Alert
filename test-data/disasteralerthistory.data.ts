@@ -1,5 +1,4 @@
 export const ALERT_HISTORY_PERFORMANCE_DATA = {
-  BASE_URL: "https://ndwc-cap-kiosk-dev.azurewebsites.net",
   ROOT_URL: "https://ndwc-cap-kiosk-dev.azurewebsites.net",
 
   PATH_TEMPLATE: "/kioskclient/disasteralerthistory/history/{geocode}",

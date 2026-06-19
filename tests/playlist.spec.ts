@@ -1,10 +1,7 @@
-import dotenv from "dotenv";
-dotenv.config();
-
 import { test } from "@playwright/test";
 import { PLAYLIST_PERFORMANCE_DATA } from "../test-data/playlist.data";
 import { PlaylistPerformancePage } from "../page-object/playlist";
-
+import { ENV } from "../config/environment";
 type PerformanceSuccessResult = {
   success: true;
   run: number;
@@ -27,15 +24,13 @@ test("Performance playlist Page - 20 Contexts", async () => {
   const finishTimes: number[] = [];
   const errorLogs: string[] = [];
 
-  const token = process.env.KIOSK_TOKEN?.trim();
+  const token = ENV.KIOSK_TOKEN.trim();
 
   if (!token) {
     throw new Error("Missing KIOSK_TOKEN in .env");
   }
 
-  const fullUrl =
-    `${PLAYLIST_PERFORMANCE_DATA.BASE_URL}` +
-    `${PLAYLIST_PERFORMANCE_DATA.PATH}/${token}`;
+  const fullUrl = `${ENV.V9_URL}${PLAYLIST_PERFORMANCE_DATA.PATH_TEMPLATE}/${token}`;
 
   console.log("Performance Result Playlist Page");
   console.log(

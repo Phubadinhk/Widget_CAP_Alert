@@ -1,91 +1,89 @@
-import dotenv from "dotenv";
-dotenv.config();
-
 import { test } from "@playwright/test";
-import { TEMPERATURE_PERFORMANCE_DATA } from "../test-data/temperature.data";
-import { TemperaturePerformancePage } from "../page-object/temperature";
-
+import { ALERT_HISTORY_PERFORMANCE_DATA } from "../test-data/disasteralerthistory.data";
+import { AlertHistoryPerformancePage } from "../page-object/disasteralerthistory";
+import { ENV } from "../config/environment";
 type PerformanceSuccessResult = {
   success: true;
-  provinceId: number;
+  run: number;
+  instance: number;
+  geocode: string;
   finishTimeSec: number;
 };
 
 type PerformanceFailResult = {
   success: false;
-  provinceId: number;
+  run: number;
+  instance: number;
+  geocode: string;
   message: string;
 };
 
 type PerformanceResult = PerformanceSuccessResult | PerformanceFailResult;
 
-test("Performance wrf24hr Page - Concurrent", async () => {
-  test.setTimeout(TEMPERATURE_PERFORMANCE_DATA.TEST_TIMEOUT);
+test("Performance DisasterAlertHistory Page - concurrent", async () => {
+  test.setTimeout(ALERT_HISTORY_PERFORMANCE_DATA.TEST_TIMEOUT);
 
   const finishTimes: number[] = [];
   const errorLogs: string[] = [];
 
-  const token = process.env.KIOSK_TOKEN?.trim();
+  const token = ENV.KIOSK_TOKEN.trim();
 
   if (!token) {
     throw new Error("Missing KIOSK_TOKEN in .env");
   }
 
-  console.log("Performance Result wrf24hr Page");
-
+  console.log("Performance Result DisasterAlertHistory Page");
   console.log(
-    `1 Run = 1 Browser | เปิดพร้อมกัน ${TEMPERATURE_PERFORMANCE_DATA.PROVINCE_IDS.length} Contexts`,
+    `1 Run = 1 Browser | เปิดพร้อมกัน ${ALERT_HISTORY_PERFORMANCE_DATA.GEOCODE.length} Contexts`,
   );
 
-  for (let run = 1; run <= TEMPERATURE_PERFORMANCE_DATA.TOTAL_RUNS; run++) {
+  for (let run = 1; run <= ALERT_HISTORY_PERFORMANCE_DATA.TOTAL_RUNS; run++) {
     console.log(`================ Run ${run} ================`);
 
-    const temperaturePage = new TemperaturePerformancePage();
+    const alertHistoryPage = new AlertHistoryPerformancePage();
 
     try {
-      await temperaturePage.openBrowser();
+      await alertHistoryPage.openBrowser();
 
       const tasks: Promise<PerformanceResult>[] =
-        TEMPERATURE_PERFORMANCE_DATA.PROVINCE_IDS.map(
-          async (provinceId) => {
-            try {
-              const path =
-                TEMPERATURE_PERFORMANCE_DATA.PATH_TEMPLATE.replace(
-                  "{provinceId}",
-                  String(provinceId),
-                );
+        ALERT_HISTORY_PERFORMANCE_DATA.GEOCODE.map(async (geocode, index) => {
+          const instance = index + 1;
 
-              const fullUrl =
-                `${TEMPERATURE_PERFORMANCE_DATA.BASE_URL}` +
-                `${path}/${token}`;
+          try {
+            const path = ALERT_HISTORY_PERFORMANCE_DATA.PATH_TEMPLATE.replace(
+              "{geocode}",
+              geocode,
+            );
 
-              const finishTimeSec =
-                await temperaturePage.gotoRootThenTargetAndGetNetworkFinishTimeByNewContext(
-                  TEMPERATURE_PERFORMANCE_DATA.ROOT_URL,
-                  fullUrl,
-                  TEMPERATURE_PERFORMANCE_DATA.WAIT_UNTIL,
-                  TEMPERATURE_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,
-                  TEMPERATURE_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
-                  `reports/screenshots/Temperature/run-${run}-province-${provinceId}.png`,
-                );
+            const fullUrl = `${ENV.V9_URL}${path}/${token}`;
 
-              return {
-                success: true as const,
-                provinceId,
-                finishTimeSec,
-              };
-            } catch (error) {
-              const message =
-                error instanceof Error ? error.message : String(error);
+            const finishTimeSec =
+              await alertHistoryPage.gotoRootThenTargetAndGetNetworkFinishTimeByNewContext(
+                ENV.V9_URL,
+                fullUrl,
+                ALERT_HISTORY_PERFORMANCE_DATA.WAIT_UNTIL,
+                ALERT_HISTORY_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,
+                ALERT_HISTORY_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
+                `reports/screenshots/disasteralerthistory/run-${run}-geocode-${geocode}.png`,
+              );
 
-              return {
-                success: false as const,
-                provinceId,
-                message,
-              };
-            }
-          },
-        );
+            return {
+              success: true as const,
+              run,
+              instance,
+              geocode,
+              finishTimeSec,
+            };
+          } catch (error) {
+            return {
+              success: false as const,
+              run,
+              instance,
+              geocode,
+              message: error instanceof Error ? error.message : String(error),
+            };
+          }
+        });
 
       const results = await Promise.all(tasks);
 
@@ -94,7 +92,7 @@ test("Performance wrf24hr Page - Concurrent", async () => {
           finishTimes.push(result.finishTimeSec);
 
           console.log(
-            `Run ${run} | Province ${result.provinceId}: ${result.finishTimeSec.toFixed(2)} s`,
+            `Run ${result.run} | Geocode ${result.geocode}: ${result.finishTimeSec.toFixed(2)} s`,
           );
         } else {
           let errorType = "UNKNOWN_ERROR";
@@ -108,36 +106,33 @@ test("Performance wrf24hr Page - Concurrent", async () => {
             errorType = "ลิงก์เว็บผิด หรือ Domain ไม่ถูกต้อง";
           } else if (result.message.includes("Test timeout")) {
             errorType = "เวลารวมของ Test หมด";
-          } else if (
-            result.message.includes("PERFORMANCE_PAGE_LOAD_ERROR")
-          ) {
+          } else if (result.message.includes("NORMAL_PAGE_LOAD_ERROR")) {
+            errorType = "โหลดหน้าเว็บปกติไม่สำเร็จ ไม่ใช่ Performance";
+          } else if (result.message.includes("PERFORMANCE_PAGE_LOAD_ERROR")) {
             errorType = "โหลดหน้าทดสอบไม่สำเร็จ";
-          } else if (
-            result.message.includes("BROWSER_INITIALIZE_ERROR")
-          ) {
+          } else if (result.message.includes("BROWSER_INITIALIZE_ERROR")) {
             errorType = "สร้าง Browser ไม่สำเร็จ";
           }
 
           console.error(
-            `Run ${run} | Province ${result.provinceId}: โหลดไม่สำเร็จ`,
+            `Run ${result.run} | Geocode ${result.geocode}: โหลดไม่สำเร็จ`,
           );
-
           console.error(`Error Type: ${errorType}`);
           console.error(`Error Detail: ${result.message}`);
 
           errorLogs.push(
-            `Run ${run} | Province ${result.provinceId}: ${errorType} | ${result.message}`,
+            `Run ${result.run} | Geocode ${result.geocode}: ${errorType} | ${result.message}`,
           );
         }
       });
     } finally {
-      await temperaturePage.close();
+      await alertHistoryPage.close();
     }
   }
 
   const totalExpected =
-    TEMPERATURE_PERFORMANCE_DATA.TOTAL_RUNS *
-    TEMPERATURE_PERFORMANCE_DATA.PROVINCE_IDS.length;
+    ALERT_HISTORY_PERFORMANCE_DATA.TOTAL_RUNS *
+    ALERT_HISTORY_PERFORMANCE_DATA.GEOCODE.length;
 
   const totalTime = finishTimes.reduce((sum, time) => sum + time, 0);
 
@@ -160,28 +155,18 @@ test("Performance wrf24hr Page - Concurrent", async () => {
   const minTime = sortedTimes.length > 0 ? sortedTimes[0] : 0;
 
   const maxTime =
-    sortedTimes.length > 0
-      ? sortedTimes[sortedTimes.length - 1]
-      : 0;
+    sortedTimes.length > 0 ? sortedTimes[sortedTimes.length - 1] : 0;
 
   console.log("====================================");
-
   console.log(`Success Pages: ${finishTimes.length}/${totalExpected}`);
-
   console.log(`Failed Pages: ${errorLogs.length}/${totalExpected}`);
-
   console.log(`Total Time: ${totalTime.toFixed(2)} s`);
-
   console.log(`Average Time: ${averageTime.toFixed(2)} s`);
-
   console.log(`Median Time: ${medianTime.toFixed(2)} s`);
-
   console.log(`Min Time: ${minTime.toFixed(2)} s`);
-
   console.log(`Max Time: ${maxTime.toFixed(2)} s`);
 
   console.log("====================================");
-
   console.log("Error Summary");
 
   if (errorLogs.length === 0) {

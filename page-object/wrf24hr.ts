@@ -1,6 +1,6 @@
 import { Browser, BrowserContext, Page, chromium } from "@playwright/test";
 
-export class DangerPerformancePage {
+export class TemperaturePerformancePage {
   private browser?: Browser;
 
   async openBrowser(): Promise<void> {
@@ -37,12 +37,6 @@ export class DangerPerformancePage {
     });
 
     const page: Page = await context.newPage();
-
-    page.on("response", async (response) => {
-      if (response.status() === 401) {
-        console.log("401 =>", response.url());
-      }
-    });
 
     try {
       const rootResponse = await page.goto(rootUrl, {
@@ -93,6 +87,18 @@ export class DangerPerformancePage {
 
       return finishTimeMs / 1000;
     } catch (error) {
+      if (screenshotPath) {
+        try {
+          await page.screenshot({
+            path: screenshotPath.replace(".png", "-FAIL.png"),
+            fullPage: true,
+            timeout: 10000,
+          });
+        } catch (screenshotError) {
+          console.error("Capture fail screenshot error:", screenshotError);
+        }
+      }
+
       const message = error instanceof Error ? error.message : String(error);
 
       throw new Error(

@@ -1,5 +1,4 @@
 export const HOME_PERFORMANCE_DATA = {
-  BASE_URL: "https://dev-ndwc.azurewebsites.net",
   PATH_TEMPLATE: "/kioskclient/mainpage/{provinceId}/{stationId}",
 
   TOTAL_RUNS: 1,

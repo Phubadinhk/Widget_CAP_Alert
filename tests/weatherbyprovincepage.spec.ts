@@ -1,9 +1,7 @@
-import dotenv from "dotenv";
-dotenv.config();
-
 import { test } from "@playwright/test";
-import { WEATHER_PERFORMANCE_DATA } from "../test-data/weather_province.data";
-import { WeatherPerformancePage } from "../page-object/weather_province";
+import { WEATHER_PERFORMANCE_DATA } from "../test-data/weatherbyprovincepage.data";
+import { WeatherPerformancePage } from "../page-object/weatherbyprovincepage";
+import { ENV } from "../config/environment";
 
 type PerformanceSuccessResult = {
   success: true;
@@ -25,7 +23,7 @@ test("Performance WeatherByProvincePage - Concurrent", async () => {
   const finishTimes: number[] = [];
   const errorLogs: string[] = [];
 
-  const token = process.env.KIOSK_TOKEN?.trim();
+  const token = ENV.KIOSK_TOKEN.trim();
 
   if (!token) {
     throw new Error("Missing KIOSK_TOKEN in .env");
@@ -52,12 +50,11 @@ test("Performance WeatherByProvincePage - Concurrent", async () => {
               String(provinceId),
             );
 
-            const fullUrl =
-              `${WEATHER_PERFORMANCE_DATA.BASE_URL}` + `${path}/${token}`;
+            const fullUrl = `${ENV.V3_URL}${path}/${token}`;
 
             const finishTimeSec =
               await weatherPage.gotoRootThenTargetAndGetNetworkFinishTimeByNewContext(
-                WEATHER_PERFORMANCE_DATA.ROOT_URL,
+                ENV.V3_URL,
                 fullUrl,
                 WEATHER_PERFORMANCE_DATA.WAIT_UNTIL,
                 WEATHER_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,

@@ -1,10 +1,7 @@
-import dotenv from "dotenv";
-dotenv.config();
-
 import { test } from "@playwright/test";
-import { DANGER_PERFORMANCE_DATA } from "../test-data/danger.data";
-import { DangerPerformancePage } from "../page-object/danger";
-
+import { DANGER_PERFORMANCE_DATA } from "../test-data/DangerSituation.data";
+import { DangerPerformancePage } from "../page-object/DangerSituation";
+import { ENV } from "../config/environment";
 type PerformanceSuccessResult = {
   success: true;
   provinceId: number;
@@ -25,7 +22,7 @@ test("Performance DangerSituation Page - Concurrent", async () => {
   const finishTimes: number[] = [];
   const errorLogs: string[] = [];
 
-  const token = process.env.KIOSK_TOKEN?.trim();
+  const token = ENV.KIOSK_TOKEN.trim();
 
   if (!token) {
     throw new Error("Missing KIOSK_TOKEN in .env");
@@ -52,17 +49,16 @@ test("Performance DangerSituation Page - Concurrent", async () => {
               String(provinceId),
             );
 
-            const fullUrl =
-              `${DANGER_PERFORMANCE_DATA.BASE_URL}` + `${path}/${token}`;
+            const fullUrl = `${ENV.V9_URL}${path}/${token}`;
 
             const finishTimeSec =
               await dangerPage.gotoRootThenTargetAndGetNetworkFinishTimeByNewContext(
-                DANGER_PERFORMANCE_DATA.ROOT_URL,
+                ENV.V9_URL,
                 fullUrl,
                 DANGER_PERFORMANCE_DATA.WAIT_UNTIL,
                 DANGER_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,
                 DANGER_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
-                `reports/screenshots/Danger/run-${run}-province-${provinceId}.png`,
+                `reports/screenshots/DangerSituation/run-${run}-province-${provinceId}.png`,
               );
 
             return {
