@@ -1,6 +1,7 @@
 import { test } from "@playwright/test";
 import { ALERT_HISTORY_PERFORMANCE_DATA } from "../test-data/disasteralerthistory.data";
 import { AlertHistoryPerformancePage } from "../page-object/disasteralerthistory";
+import "../src/config/env-loader";
 import { ENV } from "../src/config/environment";
 type PerformanceSuccessResult = {
   success: true;

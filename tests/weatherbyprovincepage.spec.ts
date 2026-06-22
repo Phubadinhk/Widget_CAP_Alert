@@ -1,6 +1,7 @@
 import { test } from "@playwright/test";
 import { WEATHER_PERFORMANCE_DATA } from "../test-data/weatherbyprovincepage.data";
 import { WeatherPerformancePage } from "../page-object/weatherbyprovincepage";
+import "../src/config/env-loader";
 import { ENV } from "../src/config/environment";
 
 type PerformanceSuccessResult = {

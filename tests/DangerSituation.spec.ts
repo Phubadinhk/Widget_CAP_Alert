@@ -1,6 +1,7 @@
 import { test } from "@playwright/test";
 import { DANGER_PERFORMANCE_DATA } from "../test-data/DangerSituation.data";
 import { DangerPerformancePage } from "../page-object/DangerSituation";
+import "../src/config/env-loader";
 import { ENV } from "../src/config/environment";
 type PerformanceSuccessResult = {
   success: true;

@@ -1,6 +1,7 @@
 import { test } from "@playwright/test";
 import { FIVE_DAY_PERFORMANCE_DATA } from "../test-data/wrf5Day.data";
 import { FiveDayPerformancePage } from "../page-object/wrf5Day";
+import "../src/config/env-loader";
 import { ENV } from "../src/config/environment";
 type PerformanceSuccessResult = {
   success: true;

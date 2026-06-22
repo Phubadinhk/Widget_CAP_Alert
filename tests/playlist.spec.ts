@@ -1,6 +1,7 @@
 import { test } from "@playwright/test";
 import { PLAYLIST_PERFORMANCE_DATA } from "../test-data/playlist.data";
 import { PlaylistPerformancePage } from "../page-object/playlist";
+import "../src/config/env-loader";
 import { ENV } from "../src/config/environment";
 type PerformanceSuccessResult = {
   success: true;

@@ -1,6 +1,7 @@
 import { test } from "@playwright/test";
 import { HOME_PERFORMANCE_DATA } from "../test-data/mainpage.data";
 import { HomePerformancePage } from "../page-object/mainpage";
+import "../src/config/env-loader";
 import { ENV } from "../src/config/environment";
 type PerformanceSuccessResult = {
   success: true;

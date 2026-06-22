@@ -1,6 +1,7 @@
 import { test } from "@playwright/test";
 import { RAINFALL_PERFORMANCE_DATA } from "../test-data/cumulativeRainfall.data";
 import { RainfallPerformancePage } from "../page-object/cumulativeRainfall";
+import "../src/config/env-loader";
 import { ENV } from "../src/config/environment";
 
 type PerformanceSuccessResult = {

@@ -1,6 +1,7 @@
 import { test } from "@playwright/test";
 import { TEMPERATURE_PERFORMANCE_DATA } from "../test-data/wrf24hr.data";
 import { TemperaturePerformancePage } from "../page-object/wrf24hr";
+import "../src/config/env-loader";
 import { ENV } from "../src/config/environment";
 
 type PerformanceSuccessResult = {
