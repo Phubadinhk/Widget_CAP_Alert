@@ -30,8 +30,8 @@ jobs:
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
-            path: ~/.cache/ms-playwright
-            key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install Playwright browsers
         run: |
@@ -40,7 +40,7 @@ jobs:
           npx playwright install chromium --with-deps
           npx playwright --version
           DEBUG=pw:install npx playwright install --with-deps
-    
+
       - name: Debug Playwright
         run: |
           node -v
@@ -428,13 +428,13 @@ jobs:
 
           files = [
               ("playlist", "Playlist"),
-              ("home", "MainPage"),
-              ("alert_history", "DisasterAlertHistory"),
-              ("danger", "DangerSituation"),
-              ("five-day", "wrf5Day"),
-              ("rainfall", "CumulativeRainfall"),
-              ("temperature", "wrf24hr"),
-              ("weather_province", "WeatherByProvincePage"),
+              ("mainpage", "MainPage"),
+              ("disasteralerthistory", "DisasterAlertHistory"),
+              ("DangerSituation", "DangerSituation"),
+              ("wrf5Day", "wrf5Day"),
+              ("cumulativeRainfall", "CumulativeRainfall"),
+              ("wrf24hr", "wrf24hr"),
+              ("weatherbyprovincepage", "WeatherByProvincePage"),
           ]
 
           summary_text = ""
