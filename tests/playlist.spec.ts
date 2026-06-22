@@ -1,7 +1,7 @@
 import { test } from "@playwright/test";
 import { PLAYLIST_PERFORMANCE_DATA } from "../test-data/playlist.data";
 import { PlaylistPerformancePage } from "../page-object/playlist";
-import { ENV } from "../config/environment";
+import { ENV } from "../src/config/environment";
 type PerformanceSuccessResult = {
   success: true;
   run: number;
@@ -20,6 +20,11 @@ type PerformanceResult = PerformanceSuccessResult | PerformanceFailResult;
 
 test("Performance playlist Page - 20 Contexts", async () => {
   test.setTimeout(PLAYLIST_PERFORMANCE_DATA.TEST_TIMEOUT);
+
+  console.log("====================================");
+  console.log(`Environment : ${ENV.TEST_ENV}`);
+  console.log(`V9_URL      : ${ENV.V9_URL}`);
+  console.log("====================================");
 
   const finishTimes: number[] = [];
   const errorLogs: string[] = [];
@@ -53,7 +58,7 @@ test("Performance playlist Page - 20 Contexts", async () => {
           try {
             const finishTimeSec =
               await playlistPage.gotoRootThenTargetAndGetNetworkFinishTimeByNewContext(
-                PLAYLIST_PERFORMANCE_DATA.ROOT_URL,
+                ENV.V9_URL,
                 fullUrl,
                 PLAYLIST_PERFORMANCE_DATA.WAIT_UNTIL,
                 PLAYLIST_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,

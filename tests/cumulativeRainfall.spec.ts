@@ -1,7 +1,7 @@
 import { test } from "@playwright/test";
 import { RAINFALL_PERFORMANCE_DATA } from "../test-data/cumulativeRainfall.data";
 import { RainfallPerformancePage } from "../page-object/cumulativeRainfall";
-import { ENV } from "../config/environment";
+import { ENV } from "../src/config/environment";
 
 type PerformanceSuccessResult = {
   success: true;
@@ -21,6 +21,11 @@ type PerformanceResult = PerformanceSuccessResult | PerformanceFailResult;
 
 test("Performance cumulativeRainfall Page - 20 Contexts", async () => {
   test.setTimeout(RAINFALL_PERFORMANCE_DATA.TEST_TIMEOUT);
+
+  console.log("====================================");
+  console.log(`Environment : ${ENV.TEST_ENV}`);
+  console.log(`V3_URL      : ${ENV.V3_URL}`);
+  console.log("====================================");
 
   const finishTimes: number[] = [];
   const errorLogs: string[] = [];

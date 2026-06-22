@@ -8,10 +8,28 @@ on:
 
 jobs:
   performance-test:
+
+    name: Performance Test (${{ matrix.environment }})
+
     runs-on: ubuntu-latest
 
+    strategy:
+      fail-fast: false
+      matrix:
+        environment:
+          - DEV
+          - UAT
+
+    environment:
+      name: ${{ matrix.environment }}
+
     env:
+      TEST_ENV: ${{ matrix.environment }}
+
+      V3_URL: ${{ secrets.V3_URL }}
+      V9_URL: ${{ secrets.V9_URL }}
       KIOSK_TOKEN: ${{ secrets.KIOSK_TOKEN }}
+
       RUN_DATE: ${{ github.run_id }}
       RUN_START_TIME_ONLY: ""
 
@@ -386,7 +404,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: excel-performance-report
+          name: excel-performance-report-${{ matrix.environment }}
           path: performance-report-*.xlsx
 
       - name: Upload text reports
@@ -425,6 +443,7 @@ jobs:
           status = os.environ.get("STATUS", "N/A")
           run_url = os.environ.get("RUN_URL", "N/A")
           artifact_url = os.environ.get("ARTIFACT_URL", "N/A")
+          test_env = os.environ.get("TEST_ENV", "N/A")
 
           files = [
               ("playlist", "Playlist"),
@@ -532,6 +551,11 @@ jobs:
                   {
                       "type": "TextBlock",
                       "text": f"Status: {status}",
+                      "wrap": True
+                  },
+                  {
+                      "type": "TextBlock",
+                      "text": f"Environment: {test_env}",
                       "wrap": True
                   },
                   {

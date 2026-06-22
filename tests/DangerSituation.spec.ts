@@ -1,7 +1,7 @@
 import { test } from "@playwright/test";
 import { DANGER_PERFORMANCE_DATA } from "../test-data/DangerSituation.data";
 import { DangerPerformancePage } from "../page-object/DangerSituation";
-import { ENV } from "../config/environment";
+import { ENV } from "../src/config/environment";
 type PerformanceSuccessResult = {
   success: true;
   provinceId: number;
@@ -18,6 +18,11 @@ type PerformanceResult = PerformanceSuccessResult | PerformanceFailResult;
 
 test("Performance DangerSituation Page - Concurrent", async () => {
   test.setTimeout(DANGER_PERFORMANCE_DATA.TEST_TIMEOUT);
+
+  console.log("====================================");
+  console.log(`Environment : ${ENV.TEST_ENV}`);
+  console.log(`V9_URL      : ${ENV.V9_URL}`);
+  console.log("====================================");
 
   const finishTimes: number[] = [];
   const errorLogs: string[] = [];

@@ -1,7 +1,7 @@
 import { test } from "@playwright/test";
 import { WEATHER_PERFORMANCE_DATA } from "../test-data/weatherbyprovincepage.data";
 import { WeatherPerformancePage } from "../page-object/weatherbyprovincepage";
-import { ENV } from "../config/environment";
+import { ENV } from "../src/config/environment";
 
 type PerformanceSuccessResult = {
   success: true;
@@ -19,6 +19,11 @@ type PerformanceResult = PerformanceSuccessResult | PerformanceFailResult;
 
 test("Performance WeatherByProvincePage - Concurrent", async () => {
   test.setTimeout(WEATHER_PERFORMANCE_DATA.TEST_TIMEOUT);
+
+  console.log("====================================");
+  console.log(`Environment : ${ENV.TEST_ENV}`);
+  console.log(`V3_URL      : ${ENV.V3_URL}`);
+  console.log("====================================");
 
   const finishTimes: number[] = [];
   const errorLogs: string[] = [];

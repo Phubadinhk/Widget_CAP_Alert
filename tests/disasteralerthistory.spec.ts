@@ -1,7 +1,7 @@
 import { test } from "@playwright/test";
 import { ALERT_HISTORY_PERFORMANCE_DATA } from "../test-data/disasteralerthistory.data";
 import { AlertHistoryPerformancePage } from "../page-object/disasteralerthistory";
-import { ENV } from "../config/environment";
+import { ENV } from "../src/config/environment";
 type PerformanceSuccessResult = {
   success: true;
   run: number;
@@ -22,6 +22,11 @@ type PerformanceResult = PerformanceSuccessResult | PerformanceFailResult;
 
 test("Performance DisasterAlertHistory Page - concurrent", async () => {
   test.setTimeout(ALERT_HISTORY_PERFORMANCE_DATA.TEST_TIMEOUT);
+
+  console.log("====================================");
+  console.log(`Environment : ${ENV.TEST_ENV}`);
+  console.log(`V9_URL      : ${ENV.V9_URL}`);
+  console.log("====================================");
 
   const finishTimes: number[] = [];
   const errorLogs: string[] = [];

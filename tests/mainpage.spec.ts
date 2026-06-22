@@ -1,7 +1,7 @@
 import { test } from "@playwright/test";
 import { HOME_PERFORMANCE_DATA } from "../test-data/mainpage.data";
 import { HomePerformancePage } from "../page-object/mainpage";
-import { ENV } from "../config/environment";
+import { ENV } from "../src/config/environment";
 type PerformanceSuccessResult = {
   success: true;
   provinceId: number;
@@ -20,6 +20,11 @@ type PerformanceResult = PerformanceSuccessResult | PerformanceFailResult;
 
 test("Performance Main Page - 20 contexts concurrent", async () => {
   test.setTimeout(HOME_PERFORMANCE_DATA.TEST_TIMEOUT);
+
+  console.log("====================================");
+  console.log(`Environment : ${ENV.TEST_ENV}`);
+  console.log(`V3_URL      : ${ENV.V3_URL}`);
+  console.log("====================================");
 
   const finishTimes: number[] = [];
   const errorLogs: string[] = [];

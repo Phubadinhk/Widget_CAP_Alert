@@ -1,7 +1,7 @@
 import { test } from "@playwright/test";
 import { FIVE_DAY_PERFORMANCE_DATA } from "../test-data/wrf5Day.data";
 import { FiveDayPerformancePage } from "../page-object/wrf5Day";
-import { ENV } from "../config/environment";
+import { ENV } from "../src/config/environment";
 type PerformanceSuccessResult = {
   success: true;
   provinceId: number;
@@ -18,6 +18,11 @@ type PerformanceResult = PerformanceSuccessResult | PerformanceFailResult;
 
 test("Performance wrf5Day Page - Concurrent", async () => {
   test.setTimeout(FIVE_DAY_PERFORMANCE_DATA.TEST_TIMEOUT);
+
+  console.log("====================================");
+  console.log(`Environment : ${ENV.TEST_ENV}`);
+  console.log(`V3_URL      : ${ENV.V3_URL}`);
+  console.log("====================================");
 
   const finishTimes: number[] = [];
   const errorLogs: string[] = [];

@@ -1,7 +1,7 @@
 import { test } from "@playwright/test";
 import { TEMPERATURE_PERFORMANCE_DATA } from "../test-data/wrf24hr.data";
 import { TemperaturePerformancePage } from "../page-object/wrf24hr";
-import { ENV } from "../config/environment";
+import { ENV } from "../src/config/environment";
 
 type PerformanceSuccessResult = {
   success: true;
@@ -19,6 +19,11 @@ type PerformanceResult = PerformanceSuccessResult | PerformanceFailResult;
 
 test("Performance wrf24hr Page - Concurrent", async () => {
   test.setTimeout(TEMPERATURE_PERFORMANCE_DATA.TEST_TIMEOUT);
+
+  console.log("====================================");
+  console.log(`Environment : ${ENV.TEST_ENV}`);
+  console.log(`V3_URL      : ${ENV.V3_URL}`);
+  console.log("====================================");
 
   const finishTimes: number[] = [];
   const errorLogs: string[] = [];
@@ -61,7 +66,7 @@ test("Performance wrf24hr Page - Concurrent", async () => {
                 TEMPERATURE_PERFORMANCE_DATA.ROOT_URL_TIMEOUT,
                 TEMPERATURE_PERFORMANCE_DATA.NAVIGATION_TIMEOUT,
                 `reports/screenshots/wrf24hr/run-${run}-province-${provinceId}.png`,
-              );;
+              );
 
             return {
               success: true as const,
